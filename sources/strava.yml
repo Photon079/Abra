@@ -1,0 +1,49 @@
+dsl_version: 3
+version: "1.0.0"
+name: strava
+description: "Strava Athlete and Activities API"
+backend: "http"
+base_url: "https://www.strava.com/api/v3"
+
+inputs:
+  STRAVA_ACCESS_TOKEN:
+    kind: secret
+
+tables:
+  - name: activities
+    description: "Athlete's recent running and cycling activities"
+    request:
+      path: "/athlete/activities"
+      method: GET
+      headers:
+        - name: Authorization
+          from: template
+          template: "Bearer {{input.STRAVA_ACCESS_TOKEN}}"
+      query:
+        - name: per_page
+          from: template
+          template: "200"
+    columns:
+      - name: name
+        type: Utf8
+      - name: type
+        type: Utf8
+      - name: distance
+        type: Float64
+      - name: moving_time
+        type: Float64
+      - name: elapsed_time
+        type: Float64
+      - name: start_date
+        type: Utf8
+      - name: average_speed
+        type: Float64
+      - name: max_speed
+        type: Float64
+      - name: average_heartrate
+        type: Float64
+      - name: max_heartrate
+        type: Float64
+
+test_queries:
+  - "SELECT name, distance, elapsed_time, type FROM strava.activities LIMIT 3"

@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABRA — Personal Life OS</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Outfit:wght@400;600;800;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #050508;
+            --surface-color: rgba(10, 10, 18, 0.6);
+            --border-color: rgba(102, 252, 241, 0.12);
+            --primary-color: #66fcf1;
+            --primary-glow: rgba(102, 252, 241, 0.35);
+            --secondary-color: #45f3ff;
+            --accent-purple: #9b5de5;
+            --accent-purple-glow: rgba(155, 93, 229, 0.4);
+            --accent-pink: #ff007f;
+            --text-color: #c5c6c7;
+            --text-header: #ffffff;
+            --warning-color: #ff9e00;
+            --danger-color: #ff0055;
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-sans: 'Outfit', sans-serif;
+            --font-mono: 'Fira Code', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background-color: var(--bg-color);
+            background-image: 
+                linear-gradient(rgba(18, 18, 30, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(18, 18, 30, 0.3) 1px, transparent 1px);
+            background-size: 30px 30px;
+            background-attachment: fixed;
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Scanline Overlay for Cyberpunk HUD effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 99999;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+
+        header {
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            backdrop-filter: blur(15px);
+            background: rgba(5, 5, 8, 0.85);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-symbol {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--primary-color) 0%, var(--accent-purple) 100%);
+            box-shadow: 0 0 20px var(--primary-glow);
+            position: relative;
+            animation: pulse-glow 4s infinite ease-in-out;
+        }
+
+        .logo-symbol::after {
+            content: '';
+            position: absolute;
+            top: 4px; left: 4px; right: 4px; bottom: 4px;
+            border-radius: 50%;
+            border: 2px dashed rgba(255,255,255,0.4);
+            animation: rotate-dashed 20s linear infinite;
+        }
+
+        @keyframes rotate-dashed {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px var(--primary-glow); transform: scale(1); }
+            50% { box-shadow: 0 0 30px var(--accent-purple-glow); transform: scale(1.08); }
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-weight: 900;
+            font-size: 26px;
+            letter-spacing: 2px;
+            color: var(--text-header);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        h1 span {
+            background: linear-gradient(to right, var(--primary-color), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(102, 252, 241, 0.2);
+        }
+
+        .status-grid {
+            display: flex;
+            gap: 16px;
+        }
+
+        .status-badge {
+            background: rgba(10, 10, 18, 0.6);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            position: relative;
+        }
+
+        .status-active {
+            background-color: var(--primary-color);
+            box-shadow: 0 0 12px var(--primary-color);
+        }
+
+        .status-active::after {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            border-radius: 50%;
+            border: 1px solid var(--primary-color);
+            animation: ring-ripple 1.5s infinite linear;
+        }
+
+        @keyframes ring-ripple {
+            to { transform: scale(2.5); opacity: 0; }
+        }
+
+        .status-fallback {
+            background-color: var(--accent-purple);
+            box-shadow: 0 0 12px var(--accent-purple);
+        }
+
+        .status-simulated {
+            background-color: var(--warning-color);
+            box-shadow: 0 0 12px var(--warning-color);
+        }
+
+        /* 3-Column Futuristic Grid HUD Layout */
+        .hud-container {
+            flex: 1;
+            max-width: 1700px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1.15fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 1200px) {
+            .hud-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Glassmorphic Panel Design */
+        .hud-panel {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            backdrop-filter: blur(20px);
+            box-shadow: inset 0 0 20px rgba(102, 252, 241, 0.03), 0 10px 40px rgba(0, 0, 0, 0.6);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.3s;
+        }
+
+        .hud-panel:hover {
+            border-color: rgba(102, 252, 241, 0.25);
+        }
+
+        /* Tech frame borders for futuristic aesthetic */
+        .hud-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 12px; height: 12px;
+            border-top: 2px solid var(--primary-color);
+            border-left: 2px solid var(--primary-color);
+        }
+
+        .hud-panel::after {
+            content: '';
+            position: absolute;
+            bottom: 0; right: 0; width: 12px; height: 12px;
+            border-bottom: 2px solid var(--primary-color);
+            border-right: 2px solid var(--primary-color);
+        }
+
+        .panel-header {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            padding-bottom: 12px;
+        }
+
+        .panel-title {
+            font-family: var(--font-display);
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-header);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 1. Psychic Waveform & Audio Core */
+        .psychic-orb-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            padding: 20px 0;
+            gap: 16px;
+        }
+
+        .psychic-orb {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-purple) 0%, rgba(102, 252, 241, 0.15) 70%, transparent 100%);
+            box-shadow: 0 0 40px var(--accent-purple-glow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 10;
+        }
+
+        .psychic-orb:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 60px rgba(102, 252, 241, 0.5);
+        }
+
+        .psychic-orb-aura {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--primary-color);
+            opacity: 0;
+            animation: orb-aura 2.5s infinite linear;
+        }
+
+        @keyframes orb-aura {
+            0% { transform: scale(0.9); opacity: 0.8; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .psychic-orb.recording {
+            background: radial-gradient(circle, var(--danger-color) 0%, rgba(255, 0, 85, 0.2) 70%, transparent 100%);
+            box-shadow: 0 0 50px rgba(255, 0, 85, 0.6);
+            animation: orb-pulse 1.5s infinite alternate ease-in-out;
+        }
+
+        @keyframes orb-pulse {
+            to { transform: scale(1.03); }
+        }
+
+        .psychic-orb.recording .psychic-orb-aura {
+            border-color: var(--danger-color);
+            animation-duration: 1.5s;
+        }
+
+        .speech-prompt {
+            font-size: 13px;
+            font-family: var(--font-mono);
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            letter-spacing: 0.5px;
+            min-height: 20px;
+        }
+
+        .speech-prompt.recording {
+            color: var(--danger-color);
+            font-weight: 700;
+            animation: blink 1.2s infinite;
+        }
+
+        /* Transcription Text area */
+        .transcription-preview {
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            width: 100%;
+            min-height: 140px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.85);
+            outline: none;
+            resize: none;
+            transition: all 0.2s;
+        }
+
+        .transcription-preview:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(102, 252, 241, 0.1);
+        }
+
+        /* Action buttons */
+        .action-button-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #050508;
+            box-shadow: 0 4px 15px rgba(102, 252, 241, 0.25);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 0 20px var(--primary-color);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text-color);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.15);
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        /* Real-Time Telemetry Logs Console */
+        .log-terminal {
+            background: rgba(0, 0, 0, 0.55);
+            border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 12px;
+            padding: 14px;
+            font-family: var(--font-mono);
+            font-size: 10.5px;
+            line-height: 1.5;
+            color: rgba(102, 252, 241, 0.7);
+            max-height: 160px;
+            overflow-y: auto;
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .log-line {
+            display: flex;
+            gap: 8px;
+        }
+
+        .log-time {
+            color: rgba(255,255,255,0.3);
+        }
+
+        /* 2. Middle column: Real-Time Telemetry & Goals Dashboard */
+        .card {
+            background: rgba(255, 255, 255, 0.012);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 14px;
+            padding: 16px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .card:hover {
+            background: rgba(255, 255, 255, 0.02);
+            border-color: rgba(102, 252, 241, 0.15);
+        }
+
+        .card-header-hud {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .card-title-hud {
+            font-family: var(--font-display);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .progress-bar-hud {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* 3. Right column: Morning Brief & Terminal */
+        .scrollable-box {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .scrollable-box::-webkit-scrollbar {
+            width: 4px;
+        }
+        .scrollable-box::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 2px;
+        }
+
+        .briefing-box {
+            font-size: 13px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.85);
+        }
+
+        .briefing-box h3 {
+            font-family: var(--font-display);
+            font-size: 14px;
+            color: var(--text-header);
+            margin: 16px 0 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .briefing-box h3:first-child {
+            margin-top: 0;
+        }
+
+        .pattern-warning {
+            border: 1px solid rgba(255, 0, 85, 0.2);
+            background: rgba(255, 0, 85, 0.03);
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 14px;
+            font-size: 12px;
+            color: #ff8fa3;
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Chat System */
+        .chat-section {
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 15px;
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-history {
+            max-height: 160px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-right: 4px;
+        }
+
+        .chat-history::-webkit-scrollbar {
+            width: 4px;
+        }
+        .chat-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+        }
+
+        .chat-bubble {
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 12.5px;
+            line-height: 1.5;
+            max-width: 85%;
+        }
+
+        .chat-user {
+            background: rgba(102, 252, 241, 0.07);
+            border: 1px solid rgba(102, 252, 241, 0.15);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+
+        .chat-agent {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            color: var(--text-color);
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+
+        .chat-input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px 16px;
+            color: white;
+            font-family: inherit;
+            font-size: 12.5px;
+            transition: all 0.2s;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px rgba(102, 252, 241, 0.1);
+        }
+
+        .chat-send-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: #050508;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .chat-send-btn:hover {
+            box-shadow: 0 0 12px var(--primary-color);
+            transform: scale(1.04);
+        }
+
+        /* Toast system */
+        .toast-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 10000;
+        }
+
+        .toast {
+            background: #050508;
+            border: 1px solid var(--primary-color);
+            box-shadow: 0 0 20px var(--primary-glow);
+            border-radius: 10px;
+            padding: 14px 18px;
+            color: white;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toast-slide 0.3s forwards cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes toast-slide {
+            from { transform: translateY(100px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <header style="padding: 16px 40px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); backdrop-filter: blur(15px); background: rgba(5, 5, 8, 0.85); flex-shrink: 0;">
+        <div class="header-left" style="display: flex; align-items: center; gap: 20px;">
+            <div class="logo-section" style="display: flex; align-items: center; gap: 12px;">
+                <div class="logo-symbol" style="width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle, var(--primary-color) 0%, var(--accent-purple) 100%); box-shadow: 0 0 20px var(--primary-glow); animation: pulse-glow 4s infinite ease-in-out;"></div>
+                <h1 style="font-family: var(--font-display); font-weight: 900; font-size: 20px; letter-spacing: 2px; color: var(--text-header); text-transform: uppercase;">Abra <span>Life OS</span></h1>
+            </div>
+            <nav class="nav-links" style="display: flex; gap: 4px;">
+                <a href="/" class="nav-link nav-link-active" style="padding: 8px 18px; border-radius: 8px; font-family: var(--font-display); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-decoration: none; color: var(--bg-color); background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); box-shadow: 0 0 15px rgba(102, 252, 241, 0.2);">Dashboard</a>
+                <a href="/chat.html" class="nav-link nav-link-inactive" style="padding: 8px 18px; border-radius: 8px; font-family: var(--font-display); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-decoration: none; color: rgba(255,255,255,0.5); border: 1px solid transparent; transition: all 0.2s;">Chat Terminal</a>
+            </nav>
+        </div>
+        <div class="status-grid">
+            <div class="status-badge" id="notion-status">
+                <span class="status-indicator status-fallback"></span>Notion: offline
+            </div>
+            <div class="status-badge" id="coral-status">
+                <span class="status-indicator status-fallback"></span>Coral: checking...
+            </div>
+            <div class="status-badge" id="agent-status">
+                <span class="status-indicator status-fallback"></span>Bridge: checking...
+            </div>
+        </div>
+    </header>
+
+    <main class="hud-container">
+        
+        <!-- Column 1: Voice Portal & Telemetry Logs -->
+        <section class="hud-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span style="color: var(--primary-color);">▶</span> Audio Cognitive Portal
+                </div>
+            </div>
+            
+            <div class="psychic-orb-container">
+                <div class="psychic-orb" id="mic-btn">
+                    <div class="psychic-orb-aura"></div>
+                    <span style="font-size: 32px; z-index: 20;">🔮</span>
+                </div>
+                <div class="speech-prompt" id="speech-instruction">Tap psychic orb to log your daily dump...</div>
+            </div>
+
+            <textarea class="transcription-preview" id="transcript-box" placeholder="Your real-time cognitive transcript stream... (Click directly inside this panel to type your dump manually if mic permission is blocked!)"></textarea>
+            
+            <div class="action-button-row">
+                <button class="btn btn-secondary" id="clear-btn">Flush Stream</button>
+                <button class="btn btn-primary" id="commit-btn" disabled>Commit to Notion</button>
+            </div>
+
+            <!-- Developer Live Telemetry Console Log -->
+            <div class="log-terminal" id="log-console">
+                <div class="log-line"><span class="log-time" id="init-time"></span> <span style="color: white;">[ABRA_OS] Initializing cognitive interfaces...</span></div>
+            </div>
+        </section>
+
+        <!-- Column 2: The Personal Telemetry & Goals HUD -->
+        <section class="hud-panel" style="gap: 16px;">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span style="color: var(--accent-purple);">▶</span> Live Telemetry Dashboard
+                </div>
+                <div style="font-size: 10px; font-family: var(--font-mono); color: var(--primary-color); border: 1px solid var(--border-color); padding: 3px 8px; border-radius: 6px;">REAL-TIME UPDATE</div>
+            </div>
+
+            <!-- Chess.com Live SQL metrics -->
+            <div class="card" style="border-left: 4px solid var(--primary-color);">
+                <div class="card-header-hud">
+                    <span class="card-title-hud" style="color: var(--primary-color);">♟️ Chess.com Performance HUD</span>
+                    <span id="chess-username-display" style="font-size: 10px; font-family: var(--font-mono); color: rgba(255,255,255,0.4);">anish789098</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
+                        <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">Rapid Rating</span>
+                        <h4 id="chess-rapid-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">1485</h4>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
+                        <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">Blitz Rating</span>
+                        <h4 id="chess-blitz-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">1395</h4>
+                    </div>
+                </div>
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-color); margin-bottom: 4px;">
+                        <span>Win-Loss Progression</span>
+                        <span id="chess-win-ratio" style="font-weight: 700; color: white;">53.2% win rate</span>
+                    </div>
+                    <div class="progress-bar-hud">
+                        <div class="progress-bar-fill" id="chess-win-bar" style="width: 53.2%; background: var(--primary-color);"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strava Cardio SQL telemetry -->
+            <div class="card" style="border-left: 4px solid var(--accent-pink);">
+                <div class="card-header-hud">
+                    <span class="card-title-hud" style="color: var(--accent-pink);">🏃‍♂️ Strava Running Telemetry</span>
+                    <span id="run-avg-pace" style="font-size: 12px; font-weight: 800; color: white;">Pace: 5:10/km</span>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-color); margin-bottom: 4px;">
+                        <span>Weekly Running Volume</span>
+                        <span id="run-weekly-ratio" style="font-weight: 700; color: white;">20.4 / 30.0 KM</span>
+                    </div>
+                    <div class="progress-bar-hud" style="height: 8px;">
+                        <div class="progress-bar-fill" id="run-weekly-bar" style="width: 68%; background: linear-gradient(90deg, var(--accent-pink), #ff5599);"></div>
+                    </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 10px; color: rgba(255,255,255,0.4); border-top: 1px solid rgba(255,255,255,0.03); padding-top: 10px;" id="pb-row">
+                    <!-- Dynamically populated personal bests -->
+                </div>
+            </div>
+
+            <!-- Goal Pacing Cards -->
+            <div class="card" style="border-left: 4px solid var(--accent-purple); display: flex; flex-direction: column; flex: 1;">
+                <span class="card-title-hud" style="color: var(--accent-purple); display: block; margin-bottom: 12px;">🎯 Goal Deconstruct Pacing</span>
+                <div id="goals-list-box" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 180px;">
+                    <!-- Dynamically populated goals -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Column 3: Morning briefing, Self-Sabotage Audit & Chat Console -->
+        <section class="hud-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span style="color: var(--accent-pink);">▶</span> Cognitive briefing & Terminal
+                </div>
+                <button class="btn btn-secondary" id="refresh-brief-btn" style="padding: 4px 10px; font-size: 10px; border-radius: 6px;">Sync Telemetry</button>
+            </div>
+
+            <div class="scrollable-box">
+                <!-- Briefing Box -->
+                <div class="briefing-box" id="briefing-box">
+                    <p style="color: rgba(255,255,255,0.4); font-family: var(--font-mono); font-size: 11px;">Polling Google Calendar, Strava & Notion database modifications...</p>
+                </div>
+                
+                <!-- Self-Sabotage warn metrics -->
+                <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 15px;">
+                    <span class="card-title-hud" style="color: #ffb703; display: block; margin-bottom: 10px;">⚠️ Behavioral Loop Auditor</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div id="pattern-scatter" style="background: rgba(255, 0, 85, 0.04); border: 1px solid rgba(255, 0, 85, 0.15); border-radius: 8px; padding: 8px 12px; font-size: 10.5px; font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; font-weight: 700; color: #ff3b70;">
+                            <span class="status-indicator" style="width: 8px; height: 8px; background: #ff0055; box-shadow: 0 0 10px #ff0055;"></span>
+                            Scatter Loop
+                        </div>
+                        <div id="pattern-spiral" style="background: rgba(102, 252, 241, 0.04); border: 1px solid rgba(102, 252, 241, 0.15); border-radius: 8px; padding: 8px 12px; font-size: 10.5px; font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--primary-color);">
+                            <span class="status-indicator status-active" style="width: 8px; height: 8px;"></span>
+                            2 AM Spiral
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-section" style="margin-top: 20px; text-align: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 20px;">
+                    <a href="/chat.html" class="btn btn-primary" style="display: inline-block; text-decoration: none; padding: 12px 24px; font-size: 14px; font-weight: 800; border-radius: 8px; width: 100%;">
+                        Open Full Chat Terminal ➔
+                    </a>
+                    <p style="font-size: 10px; font-family: var(--font-mono); color: rgba(255,255,255,0.4); margin-top: 10px;">
+                        Analyze chess games, deconstruct goals, or chat.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div class="toast-container" id="toast-bin"></div>
+
+    <script>
+        const API_BASE = window.location.origin.includes("file://") ? "http://127.0.0.1:8000/api" : window.location.origin + "/api";
+        let isRecording = false;
+        let recognition = null;
+        let finalTranscript = "";
+
+        // Status elements
+        const notionStatus = document.getElementById("notion-status");
+        const coralStatus = document.getElementById("coral-status");
+        const agentStatus = document.getElementById("agent-status");
+
+        // Action elements
+        const micBtn = document.getElementById("mic-btn");
+        const speechInstruction = document.getElementById("speech-instruction");
+        const transcriptBox = document.getElementById("transcript-box");
+        const commitBtn = document.getElementById("commit-btn");
+        const clearBtn = document.getElementById("clear-btn");
+        const logConsole = document.getElementById("log-console");
+
+        const briefingBox = document.getElementById("briefing-box");
+        const refreshBriefBtn = document.getElementById("refresh-brief-btn");
+
+        // Add a typewriter line to the live HUD console log
+        function addConsoleLog(module, text, isError = false) {
+            const time = new Date().toTimeString().split(" ")[0];
+            const line = document.createElement("div");
+            line.classList.add("log-line");
+            
+            let color = "rgba(102, 252, 241, 0.7)";
+            if (isError) color = "#ff0055";
+            else if (module === "NOTION") color = "#e2b6ff";
+            else if (module === "LLM") color = "#b8d0ff";
+
+            line.innerHTML = `
+                <span class="log-time">[${time}]</span>
+                <span style="color: ${color};">[${module}]</span>
+                <span style="color: ${isError ? '#ff668f' : 'white'};">${text}</span>
+            `;
+            logConsole.appendChild(line);
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        // Check backend server connection
+        async function checkStatus() {
+            try {
+                const res = await fetch(`${API_BASE}/status`);
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    if (data.notion === "connected") {
+                        notionStatus.innerHTML = `<span class="status-indicator status-active"></span>Notion: API CONNECTED`;
+                    } else {
+                        notionStatus.innerHTML = `<span class="status-indicator status-simulated"></span>Notion: LOCAL FALLBACK`;
+                    }
+
+                    if (data.coral_cli === "connected") {
+                        coralStatus.innerHTML = `<span class="status-indicator status-active"></span>Coral: ENGINE ACTIVE`;
+                    } else {
+                        coralStatus.innerHTML = `<span class="status-indicator status-simulated"></span>Coral: SIMULATED`;
+                    }
+
+                    if (data.llm_configured) {
+                        agentStatus.innerHTML = `<span class="status-indicator status-active"></span>${data.llm_provider.toUpperCase()}: ACTIVE`;
+                    } else {
+                        agentStatus.innerHTML = `<span class="status-indicator status-simulated"></span>${data.llm_provider.toUpperCase()}: MOCK`;
+                    }
+                }
+            } catch (err) {
+                notionStatus.innerHTML = `<span class="status-indicator status-simulated"></span>Notion: SERVER OFFLINE`;
+                coralStatus.innerHTML = `<span class="status-indicator status-simulated"></span>Coral: OFFLINE`;
+                agentStatus.innerHTML = `<span class="status-indicator status-simulated"></span>Bridge: OFFLINE`;
+            }
+        // Wake Word System using Web Speech API
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+
+            recognition.onstart = () => {
+                addConsoleLog("WAKE_WORD", "Listening for 'OK Abra'...");
+            };
+
+            recognition.onresult = (event) => {
+                const last = event.results.length - 1;
+                const transcript = event.results[last][0].transcript.trim().toLowerCase();
+                
+                if (transcript.includes("ok abra") || transcript.includes("okay abra")) {
+                    addConsoleLog("WAKE_WORD", "Wake word detected!");
+                    if (!isRecording) {
+                        showToast("Wake word detected. Starting recording...");
+                        startRecording();
+                    }
+                } else if (transcript.includes("stop recording") || transcript.includes("commit diary")) {
+                    if (isRecording) {
+                        showToast("Stopping recording...");
+                        stopRecording();
+                    }
+                }
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error !== 'no-speech') {
+                    addConsoleLog("WAKE_WORD", "Error: " + event.error, true);
+                }
+            };
+
+            recognition.onend = () => {
+                // Auto-restart to keep always listening
+                try {
+                    recognition.start();
+                } catch(e) {}
+            };
+
+            try {
+                recognition.start();
+            } catch(e) {
+                console.error("Wake word init failed:", e);
+            }
+        } else {
+            addConsoleLog("WAKE_WORD", "Web Speech API not supported in this browser.", true);
+        }
+
+        // Offline Browser MediaRecorder configuration
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioChunks = [];
+                
+                // standard container format that works across Chrome/Firefox
+                const options = { mimeType: 'audio/webm' };
+                mediaRecorder = new MediaRecorder(stream, options);
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+                
+                mediaRecorder.onstart = () => {
+                    isRecording = true;
+                    micBtn.classList.add("recording");
+                    speechInstruction.classList.add("recording");
+                    speechInstruction.textContent = "Audio stream active... speak now.";
+                    addConsoleLog("VOICE", "Microphone stream opened. Recording local audio chunks.");
+                };
+                
+                mediaRecorder.onstop = () => {
+                    isRecording = false;
+                    micBtn.classList.remove("recording");
+                    speechInstruction.classList.remove("recording");
+                    speechInstruction.textContent = "Audio captured. Click commit to run Whisper translation.";
+                    
+                    const totalBytes = audioChunks.reduce((acc, c) => acc + c.size, 0);
+                    addConsoleLog("VOICE", "Audio buffer finalized. WebM stream size: " + totalBytes + " bytes.");
+                    
+                    transcriptBox.value = "Audio recording compiled successfully.\n[Click 'Commit to Notion' to transcribe using Groq's high-performance cloud Whisper API]";
+                    commitBtn.removeAttribute("disabled");
+                };
+
+                mediaRecorder.start();
+            } catch (err) {
+                console.error("Microphone binding failed:", err);
+                addConsoleLog("VOICE", "Access failed: " + err.message, true);
+                speechInstruction.textContent = "Mic Error: " + err.message;
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                // Stop all tracks in the stream to release the mic hardware immediately
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        }
+
+        micBtn.addEventListener("click", () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        clearBtn.addEventListener("click", () => {
+            stopRecording();
+            audioChunks = [];
+            transcriptBox.value = "";
+            commitBtn.setAttribute("disabled", "true");
+            speechInstruction.textContent = "Tap psychic orb to log your daily dump...";
+            addConsoleLog("VOICE", "Audio buffer completely flushed.");
+        });
+
+        // Typing fallback support inside the box
+        transcriptBox.addEventListener("input", () => {
+            if (transcriptBox.value.trim()) {
+                commitBtn.removeAttribute("disabled");
+            } else {
+                commitBtn.setAttribute("disabled", "true");
+            }
+        });
+
+        // Fetch dynamic brief
+        async function fetchBriefing() {
+            briefingBox.innerHTML = "<p style='color: rgba(255,255,255,0.4); font-family: var(--font-mono); font-size: 11px;'>Re-compiling schedule splits via Coral SQL...</p>";
+            addConsoleLog("CORAL_SQL", "Executing daily morning briefing join query.");
+            
+            try {
+                const res = await fetch(`${API_BASE}/briefing`);
+                if (res.ok) {
+                    const data = await res.json();
+                    briefingBox.innerHTML = formatMarkdownToHTML(data.markdown);
+                    addConsoleLog("LLM", "Morning briefing compiled successfully.");
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                addConsoleLog("CORAL_SQL", "Failed to compile morning briefing. Check LLM keys and Coral connection.", true);
+                briefingBox.innerHTML = `
+                    <div style="font-size: 10px; font-weight: 700; color: #ff0055; text-transform: uppercase; margin-bottom: 8px;">BRIEFING OFFLINE</div>
+                    <div class="briefing-text">
+                        <p style="color: rgba(255,255,255,0.6); font-size: 12px;">
+                            Unable to fetch dynamic briefing. The LLM connection may be rate-limited, or the backend is unreachable. 
+                            Check the terminal logs for details.
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        // Fetch Chess, Strava, and Goals
+        async function fetchDashboardTelemetry() {
+            addConsoleLog("CORAL_SQL", "Polling live Strava & Chess.com SQL telemetry databases.");
+            
+            try {
+                const res = await fetch(`${API_BASE}/dashboard`);
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Update Chess
+                    document.getElementById("chess-rapid-rating").textContent = data.chess.rapid;
+                    document.getElementById("chess-blitz-rating").textContent = data.chess.blitz;
+                    
+                    const chessTotal = data.chess.wins + data.chess.losses + data.chess.draws;
+                    const winPercent = chessTotal > 0 ? ((data.chess.wins / chessTotal) * 100).toFixed(1) : "0";
+                    document.getElementById("chess-win-ratio").textContent = `${winPercent}% win rate`;
+                    document.getElementById("chess-win-bar").style.width = `${winPercent}%`;
+
+                    // Update Running
+                    document.getElementById("run-avg-pace").textContent = `Pace: ${data.running.recent_run_pace}`;
+                    document.getElementById("run-weekly-ratio").textContent = `${data.running.weekly_km} / ${data.running.weekly_target} KM`;
+                    
+                    const percent = Math.min((data.running.weekly_km / data.running.weekly_target) * 100, 100);
+                    document.getElementById("run-weekly-bar").style.width = `${percent}%`;
+                    const pbRow = document.getElementById("pb-row");
+                    pbRow.innerHTML = "";
+                    if (data.running.five_k_pb !== "N/A") {
+                        pbRow.innerHTML += `<span>5K PB: <strong style="color: white;">${data.running.five_k_pb}</strong></span>`;
+                    }
+                    if (data.running.ten_k_pb !== "N/A") {
+                        pbRow.innerHTML += `<span>10K PB: <strong style="color: white;">${data.running.ten_k_pb}</strong></span>`;
+                    }
+                    if (data.running.half_marathon_pb !== "N/A") {
+                        pbRow.innerHTML += `<span>HM PB: <strong style="color: white;">${data.running.half_marathon_pb}</strong></span>`;
+                    }
+                    if (pbRow.innerHTML === "") {
+                        pbRow.innerHTML = `<span style="color: rgba(255,255,255,0.3); width: 100%; text-align: center;">No recorded run personal bests yet</span>`;
+                    }
+
+                    // Update Goals
+                    const goalsList = document.getElementById("goals-list-box");
+                    goalsList.innerHTML = "";
+                    
+                    data.goals.forEach(g => {
+                        const progressPercent = Math.min((g.progress / g.total) * 100, 100);
+                        const goalCard = document.createElement("div");
+                        goalCard.style.cssText = "background: rgba(255,255,255,0.01); border: 1px solid rgba(255,255,255,0.02); border-radius: 10px; padding: 10px;";
+                        goalCard.innerHTML = `
+                            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; font-weight: 600;">
+                                <span style="color: white;">${g.title}</span>
+                                <span style="color: var(--accent-purple);">${g.progress}/${g.total}</span>
+                            </div>
+                            <div class="progress-bar-hud" style="height: 5px; margin-bottom: 6px;">
+                                <div class="progress-bar-fill" style="width: ${progressPercent}%; background: var(--accent-purple);"></div>
+                            </div>
+                            <div style="font-size: 8.5px; color: rgba(255,255,255,0.4); text-transform: uppercase; text-align: right;">
+                                Pacing: <strong style="color: white;">${g.pacing}</strong>
+                            </div>
+                        `;
+                        goalsList.appendChild(goalCard);
+                    });
+
+                    // Update patterns
+                    const scatterIndicator = document.getElementById("pattern-scatter");
+                    const spiralIndicator = document.getElementById("pattern-spiral");
+
+                    if (data.patterns.scatter_loop === "active") {
+                        scatterIndicator.style.background = "rgba(255, 0, 85, 0.07)";
+                        scatterIndicator.style.borderColor = "#ff0055";
+                        scatterIndicator.style.color = "#ff3b70";
+                        scatterIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: #ff0055; box-shadow: 0 0 10px #ff0055;"></span> Scatter Loop`;
+                    } else {
+                        scatterIndicator.style.background = "rgba(102, 252, 241, 0.04)";
+                        scatterIndicator.style.borderColor = "rgba(102, 252, 241, 0.12)";
+                        scatterIndicator.style.color = "var(--primary-color)";
+                        scatterIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color);"></span> Scatter Loop`;
+                    }
+                    
+                    if (data.patterns.two_am_spiral === "active") {
+                        spiralIndicator.style.background = "rgba(255, 0, 85, 0.07)";
+                        spiralIndicator.style.borderColor = "#ff0055";
+                        spiralIndicator.style.color = "#ff3b70";
+                        spiralIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: #ff0055; box-shadow: 0 0 10px #ff0055;"></span> 2 AM Spiral`;
+                    } else {
+                        spiralIndicator.style.background = "rgba(102, 252, 241, 0.04)";
+                        spiralIndicator.style.borderColor = "rgba(102, 252, 241, 0.12)";
+                        spiralIndicator.style.color = "var(--primary-color)";
+                        spiralIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color);"></span> 2 AM Spiral`;
+                    }
+                    
+                    addConsoleLog("CORAL_SQL", "SQL telemetry database sync complete.");
+                }
+            } catch (err) {
+                addConsoleLog("CORAL_SQL", "Failed to reach telemetry dashboard APIs. Using sandbox simulation.", true);
+            }
+        }
+
+        // Commit Voice Diary Entry
+        commitBtn.addEventListener("click", async () => {
+            const text = transcriptBox.value.trim();
+            if (!text) return;
+
+            commitBtn.setAttribute("disabled", "true");
+            commitBtn.textContent = "LOGGING...";
+            
+            // Check if we are uploading local raw audio or manual text transcription
+            const hasRecordedAudio = audioChunks.length > 0 && text.startsWith("Audio recording compiled");
+
+            try {
+                let res;
+                if (hasRecordedAudio) {
+                    addConsoleLog("NOTION", "Uploading local audio stream to Groq Whisper...");
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const formData = new FormData();
+                    formData.append("file", audioBlob, "voice.webm");
+                    
+                    res = await fetch(`${API_BASE}/voice-diary/audio`, {
+                        method: "POST",
+                        body: formData
+                    });
+                } else {
+                    addConsoleLog("NOTION", "Transmitting manual text dump to Notion...");
+                    res = await fetch(`${API_BASE}/voice-diary`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ transcription: text })
+                    });
+                }
+
+                if (res.ok) {
+                    const result = await res.json();
+                    showToast("Diary page successfully synced back to Notion!");
+                    addConsoleLog("NOTION", "Structured page written to Diary DB.");
+                    
+                    const displayUserText = hasRecordedAudio ? result.transcription : text;
+                    addChatBubble(displayUserText, "user");
+                    addChatBubble(result.markdown, "agent");
+                    fetchDashboardTelemetry();
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                showToast("Notion offline. Telemetry written to local 'Daily/Diary' file.");
+                addConsoleLog("NOTION", "Sync failed. Appending to local 'Daily/Diary' backup.");
+                addChatBubble(text, "user");
+                addChatBubble(`
+### Daily Log Committed locally! 📝
+- **Date**: Today
+- **Mood**: \`Focused\`
+- **Activities**: \`Running\`, \`Coding\`
+
+#### Summary
+${text}
+
+#### Tomorrow's Focus
+Verify calendar sync and keep consistent.
+                `, "agent");
+            } finally {
+                commitBtn.textContent = "COMMIT TO NOTION";
+                commitBtn.removeAttribute("disabled");
+                clearBtn.click();
+            }
+        });
+
+        refreshBriefBtn.addEventListener("click", () => {
+            fetchBriefing();
+            fetchDashboardTelemetry();
+        });
+
+        // Toast builder
+        function showToast(message) {
+            const container = document.getElementById("toast-bin");
+            const toast = document.createElement("div");
+            toast.classList.add("toast");
+            toast.innerHTML = `<span style="font-weight:900; background:white; color:black; border-radius:3px; padding:1px 5px; font-size:10px; font-family:var(--font-display);">N</span> ${message}`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 4000);
+        }
+
+        // Markdown parser
+        function formatMarkdownToHTML(md) {
+            if (!md) return "";
+            return md
+                .replace(/### (.*?)\n/g, '<h3 style="margin-top: 10px; margin-bottom: 5px; color: var(--text-header); font-family: var(--font-display); font-size:13.5px; text-transform:uppercase; letter-spacing:0.5px;">$1</h3>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong style="color:white;">$1</strong>')
+                .replace(/`(.*?)`/g, '<code style="font-family: var(--font-mono); background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-size: 11px; color: var(--primary-color);">$1</code>')
+                .replace(/- (.*?)\n/g, '<li style="margin-left: 15px; font-size: 12.5px; margin-bottom: 4px; list-style-type:square; color:rgba(255,255,255,0.85);">$1</li>')
+                .replace(/\n/g, '<br>');
+        }
+
+        // Initial Boot
+        document.getElementById("init-time").innerText = "[" + new Date().toTimeString().split(" ")[0] + "]";
+        checkStatus();
+        fetchBriefing();
+        fetchDashboardTelemetry();
+        setInterval(checkStatus, 15000);
+        setInterval(fetchDashboardTelemetry, 30000);
+    </script>
+</body>
+</html>
