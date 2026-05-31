@@ -10,12 +10,12 @@ Built on [Coral](https://withcoral.com) for cross-source SQL queries over person
 
 | Feature | Description |
 |---------|-------------|
-| **Voice Logging** | Browser-based audio capture and transcription for structured data entry directly to Notion. |
-| **Live Telemetry Dashboard** | Real-time synchronization of Chess.com ratings, Strava activity metrics, and Notion task completion. |
-| **Automated Briefing** | AI-generated daily summaries based on goal tracking, past entries, and current activity telemetry. |
-| **Context-Aware Analytics** | Conversational interface with access to live SQL data for querying performance metrics (e.g., Chess games or running volume). |
-| **Notion Integration** | Bi-directional synchronization for tasks, statuses, and diary logs. |
-| **Strava Automation** | OAuth token management, weekly distance tracking, and personal best detection. |
+| **Voice Diary** | Browser-based audio capture and transcription for saving thoughts directly to Notion. |
+| **Live Stats Dashboard** | Real-time synchronization of Chess.com ratings, Strava activity, and Notion tasks. |
+| **Morning Briefing** | AI-generated daily summaries based on your goals, past entries, and current activities. |
+| **Context-Aware Chat** | Conversational interface with access to live data for asking about your performance (e.g., Chess games or running volume). |
+| **Notion Sync** | Bi-directional synchronization for tasks, statuses, and diary logs. |
+| **Strava Automation** | Token management, weekly distance tracking, and personal best detection. |
 
 ## Architecture
 
@@ -125,18 +125,18 @@ Abra's LLM context relies on markdown files located in `brain_files/`:
 
 | File | Description |
 |------|-------------|
-| `master_profile.md` | Core identity, background, and operational priorities. |
-| `career_plan.md` | Active milestones and professional objectives. |
-| `patterns_for_ai_interaction.md` | Behavioral anti-patterns and intervention protocols. |
+| `master_profile.md` | Your core identity, background, and what matters most to you. |
+| `career_plan.md` | Your active milestones, goals, and dreams. |
+| `patterns_for_ai_interaction.md` | Habits to watch out for and helpful nudges to keep you on track. |
 
 ## Technology Stack
 
 - **Backend**: Python, FastAPI
 - **Frontend**: React 18, Tailwind CSS, Lucide React
-- **LLM Orchestration**: Gemini, Groq, Cerebras
+- **AI Models**: Gemini, Groq, Cerebras
 - **Transcription**: Groq Whisper API, Web Speech API
-- **Data Layer**: Coral SQL Engine
-- **State Management**: Notion API
+- **Data Engine**: Coral SQL Engine
+- **Memory & Tasks**: Notion API
 
 ## Project Structure
 
