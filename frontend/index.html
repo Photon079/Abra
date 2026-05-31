@@ -767,10 +767,10 @@
     <main class="hud-container">
         
         <!-- Column 1: Voice Portal & Telemetry Logs -->
-        <section class="hud-panel">
+        <section class="hud-panel" style="display: flex; flex-direction: column; flex: 1;">
             <div class="panel-header">
                 <div class="panel-title">
-                    <span style="color: var(--primary-color);">▶</span> Audio Cognitive Portal
+                    <span style="color: var(--primary-color);">▶</span> Voice Diary
                 </div>
             </div>
             
@@ -782,7 +782,7 @@
                 <div class="speech-prompt" id="speech-instruction">Tap psychic orb to log your daily dump...</div>
             </div>
 
-            <textarea class="transcription-preview" id="transcript-box" placeholder="Your real-time cognitive transcript stream... (Click directly inside this panel to type your dump manually if mic permission is blocked!)"></textarea>
+            <textarea class="transcription-preview" id="transcript-box" placeholder="Your real-time cognitive transcript stream... (Click directly inside this panel to type your dump manually if mic permission is blocked!)" style="flex: 1; min-height: 200px; resize: none; margin-bottom: 12px;"></textarea>
             
             <div class="action-button-row">
                 <button class="btn btn-secondary" id="clear-btn">Flush Stream</button>
@@ -799,7 +799,7 @@
         <section class="hud-panel" style="gap: 16px;">
             <div class="panel-header">
                 <div class="panel-title">
-                    <span style="color: var(--accent-purple);">▶</span> Live Telemetry Dashboard
+                    <span style="color: var(--accent-purple);">▶</span> Live Dashboard
                 </div>
                 <div style="font-size: 10px; font-family: var(--font-mono); color: var(--primary-color); border: 1px solid var(--border-color); padding: 3px 8px; border-radius: 6px;">REAL-TIME UPDATE</div>
             </div>
@@ -813,16 +813,24 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                     <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
                         <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">Rapid Rating</span>
-                        <h4 id="chess-rapid-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">---</h4>
+                        <h4 id="chess-rapid-rating" style="font-size: 18px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">---</h4>
                     </div>
                     <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
                         <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">Blitz Rating</span>
-                        <h4 id="chess-blitz-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">---</h4>
+                        <h4 id="chess-blitz-rating" style="font-size: 18px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">---</h4>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
+                        <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">30-Day Volume</span>
+                        <h4 id="chess-total-games" style="font-size: 18px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">0</h4>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
+                        <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">Match Outcomes</span>
+                        <h4 id="chess-wld" style="font-size: 12px; font-weight: 800; color: white; font-family: var(--font-mono); margin-top: 9px;">0 / 0 / 0</h4>
                     </div>
                 </div>
-                <div>
+                <div style="margin-bottom: 12px;">
                     <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-color); margin-bottom: 4px;">
-                        <span>Win-Loss Progression</span>
+                        <span>Win Rate Percentage</span>
                         <span id="chess-win-ratio" style="font-weight: 700; color: white;">Loading...</span>
                     </div>
                     <div class="progress-bar-hud">
@@ -837,35 +845,41 @@
                     <span class="card-title-hud" style="color: var(--accent-pink);">🏃‍♂️ Strava Running Telemetry</span>
                     <span id="run-avg-pace" style="font-size: 12px; font-weight: 800; color: white;">Pace: ---/km</span>
                 </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
+                        <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">7-Day Distance</span>
+                        <h4 id="run-weekly-ratio" style="font-size: 16px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">--- KM</h4>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
+                        <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">7-Day Hours</span>
+                        <h4 id="run-weekly-hours" style="font-size: 16px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">--- HRS</h4>
+                    </div>
+                </div>
                 <div style="margin-bottom: 12px;">
                     <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-color); margin-bottom: 4px;">
-                        <span>Weekly Running Volume</span>
-                        <span id="run-weekly-ratio" style="font-weight: 700; color: white;">--- / --- KM</span>
+                        <span>30-Day Total Distance</span>
+                        <span id="run-monthly-ratio" style="font-weight: 700; color: white;">--- KM</span>
                     </div>
                     <div class="progress-bar-hud" style="height: 8px; margin-bottom: 12px;">
-                        <div class="progress-bar-fill" id="run-weekly-bar" style="width: 0%; background: linear-gradient(90deg, var(--accent-pink), #ff5599);"></div>
+                        <div class="progress-bar-fill" id="run-monthly-bar" style="width: 0%; background: linear-gradient(90deg, var(--accent-pink), #ff5599);"></div>
                     </div>
-                    
                     <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-color); margin-bottom: 4px;">
-                        <span>Weekly Time Goal</span>
-                        <span id="run-time-ratio" style="font-weight: 700; color: white;">--- / --- MINS</span>
+                        <span>30-Day Training Hours</span>
+                        <span id="run-hours-ratio" style="font-weight: 700; color: white;">--- HOURS</span>
                     </div>
-                    <div class="progress-bar-hud" style="height: 8px; margin-bottom: 8px;">
-                        <div class="progress-bar-fill" id="run-time-bar" style="width: 0%; background: linear-gradient(90deg, var(--primary-color), var(--accent-purple));"></div>
+                    <div class="progress-bar-hud" style="height: 8px; margin-bottom: 12px;">
+                        <div class="progress-bar-fill" id="run-hours-bar" style="width: 0%; background: linear-gradient(90deg, var(--primary-color), var(--accent-purple));"></div>
                     </div>
-                    
-                    <div style="font-size: 11px; color: var(--text-color); text-align: right;">
-                        Total Runs: <span id="run-total-runs" style="font-weight: 700; color: white;">0</span>
+                    <div style="font-size: 11px; color: var(--text-color); text-align: right; margin-bottom: 10px;">
+                        30-Day Total Runs: <span id="run-total-runs" style="font-weight: 700; color: white;">0</span>
                     </div>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 10px; color: rgba(255,255,255,0.4); border-top: 1px solid rgba(255,255,255,0.03); padding-top: 10px;" id="pb-row">
-                    <!-- Dynamically populated personal bests -->
-                </div>
+
             </div>
 
             <!-- Goal Pacing Cards -->
             <div class="card" style="border-left: 4px solid var(--accent-purple); display: flex; flex-direction: column; flex: 1;">
-                <span class="card-title-hud" style="color: var(--accent-purple); display: block; margin-bottom: 12px;">🎯 Goal Deconstruct Pacing</span>
+                <span class="card-title-hud" style="color: var(--accent-purple); display: block; margin-bottom: 12px;">🎯 Goals Tracker</span>
                 <div id="goals-list-box" style="display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 180px;">
                     <!-- Dynamically populated goals -->
                 </div>
@@ -876,7 +890,7 @@
         <section class="hud-panel">
             <div class="panel-header">
                 <div class="panel-title">
-                    <span style="color: var(--accent-pink);">▶</span> Cognitive briefing & Terminal
+                    <span style="color: var(--accent-pink);">▶</span> Daily Briefing
                 </div>
                 <button class="btn btn-secondary" id="refresh-brief-btn" style="padding: 4px 10px; font-size: 10px; border-radius: 6px;">Sync Telemetry</button>
             </div>
@@ -887,13 +901,27 @@
                     <p style="color: rgba(255,255,255,0.4); font-family: var(--font-mono); font-size: 11px;">Polling Google Calendar, Strava & Notion database modifications...</p>
                 </div>
                 
-                <div class="chat-section" style="margin-top: 20px; text-align: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 20px;">
+                <div class="chat-section" style="margin-top: 20px; text-align: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 20px; padding-bottom: 10px;">
                     <a href="/chat.html" class="btn btn-primary" style="display: inline-block; text-decoration: none; padding: 12px 24px; font-size: 14px; font-weight: 800; border-radius: 8px; width: 100%;">
                         Open Full Chat Terminal ➔
                     </a>
-                    <p style="font-size: 10px; font-family: var(--font-mono); color: rgba(255,255,255,0.4); margin-top: 10px;">
-                        Analyze chess games, deconstruct goals, or chat.
-                    </p>
+                </div>
+
+                <div class="insights-section" style="border-top: 1px solid rgba(255,255,255,0.03); padding-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="background: rgba(102, 252, 241, 0.05); border: 1px solid rgba(102, 252, 241, 0.2); border-radius: 6px; padding: 10px;">
+                        <span style="font-size: 9px; font-weight: 800; color: var(--primary-color); text-transform: uppercase; display: block; margin-bottom: 4px;">♟️ Chess Tactics Insight</span>
+                        <span id="chess-ai-insight" style="font-size: 11px; color: rgba(255,255,255,0.8); line-height: 1.4;">Loading insight...</span>
+                    </div>
+
+                    <div style="background: rgba(255, 85, 153, 0.05); border: 1px solid rgba(255, 85, 153, 0.2); border-radius: 6px; padding: 10px;">
+                        <span style="font-size: 9px; font-weight: 800; color: var(--accent-pink); text-transform: uppercase; display: block; margin-bottom: 4px;">🏃‍♂️ Running Regimen</span>
+                        <span id="run-ai-insight" style="font-size: 11px; color: rgba(255,255,255,0.8); line-height: 1.4;">Loading insight...</span>
+                    </div>
+
+                    <div style="background: rgba(162, 102, 252, 0.05); border: 1px solid rgba(162, 102, 252, 0.2); border-radius: 6px; padding: 10px;">
+                        <span style="font-size: 9px; font-weight: 800; color: var(--accent-purple); text-transform: uppercase; display: block; margin-bottom: 4px;">🎯 Life & Goals Insight</span>
+                        <span id="life-ai-insight" style="font-size: 11px; color: rgba(255,255,255,0.8); line-height: 1.4;">Loading insight...</span>
+                    </div>
                 </div>
             </div>
         </section>
@@ -1190,49 +1218,49 @@
                     const data = await res.json();
                     
                     // Update Chess
+                    document.getElementById("chess-username-display").textContent = data.chess.username;
                     document.getElementById("chess-rapid-rating").textContent = data.chess.rapid;
                     document.getElementById("chess-blitz-rating").textContent = data.chess.blitz;
+                    document.getElementById("chess-total-games").textContent = data.chess.total_games;
+                    document.getElementById("chess-wld").textContent = `${data.chess.wins}W / ${data.chess.losses}L`;
                     
-                    const chessTotal = data.chess.wins + data.chess.losses + data.chess.draws;
-                    const winPercent = chessTotal > 0 ? ((data.chess.wins / chessTotal) * 100).toFixed(1) : "0";
-                    document.getElementById("chess-win-ratio").textContent = `${winPercent}% win rate`;
-                    document.getElementById("chess-win-bar").style.width = `${winPercent}%`;
+                    document.getElementById("chess-win-ratio").textContent = `${data.chess.win_rate}% win rate`;
+                    document.getElementById("chess-win-bar").style.width = `${data.chess.win_rate}%`;
+                    
+                    const chessInsight = document.getElementById("chess-ai-insight");
+                    if (chessInsight) chessInsight.textContent = data.chess.insight;
 
                     // Update Running
-                    document.getElementById("run-avg-pace").textContent = `Pace: ${data.running.recent_run_pace}`;
+                    document.getElementById("run-avg-pace").textContent = `Pace: ${data.running.average_pace}`;
                     
-                    const weeklyTargetDisplay = data.running.weekly_target > 0 ? data.running.weekly_target : "N/A";
-                    document.getElementById("run-weekly-ratio").textContent = `${data.running.weekly_km} / ${weeklyTargetDisplay} KM`;
+                    // 7 Day metrics
+                    if(document.getElementById("run-weekly-ratio")) document.getElementById("run-weekly-ratio").textContent = `${data.running.weekly_km} KM`;
+                    if(document.getElementById("run-weekly-hours")) document.getElementById("run-weekly-hours").textContent = `${data.running.weekly_hours} HRS`;
                     
-                    const percent = data.running.weekly_target > 0 ? Math.min((data.running.weekly_km / data.running.weekly_target) * 100, 100) : 0;
-                    document.getElementById("run-weekly-bar").style.width = `${percent}%`;
+                    const monthlyTargetDisplay = data.running.monthly_target > 0 ? data.running.monthly_target : "N/A";
+                    document.getElementById("run-monthly-ratio").textContent = `${data.running.monthly_km} / ${monthlyTargetDisplay} KM`;
                     
-                    const timeTargetDisplay = data.running.weekly_time_target > 0 ? data.running.weekly_time_target : "N/A";
-                    document.getElementById("run-time-ratio").textContent = `${data.running.weekly_time_mins} / ${timeTargetDisplay} MINS`;
+                    const percent = data.running.monthly_target > 0 ? Math.min((data.running.monthly_km / data.running.monthly_target) * 100, 100) : 0;
+                    document.getElementById("run-monthly-bar").style.width = `${percent}%`;
                     
-                    const timePercent = data.running.weekly_time_target > 0 ? Math.min((data.running.weekly_time_mins / data.running.weekly_time_target) * 100, 100) : 0;
-                    document.getElementById("run-time-bar").style.width = `${timePercent}%`;
+                    const timeTargetDisplay = data.running.monthly_hours > 0 ? 30 : "N/A"; // Assuming 30 hrs target
+                    document.getElementById("run-hours-ratio").textContent = `${data.running.monthly_hours} / 30 HOURS`;
                     
-                    document.getElementById("run-total-runs").textContent = data.running.weekly_runs;
-                    const pbRow = document.getElementById("pb-row");
-                    pbRow.innerHTML = "";
-                    if (data.running.five_k_pb !== "N/A") {
-                        pbRow.innerHTML += `<span>5K PB: <strong style="color: white;">${data.running.five_k_pb}</strong></span>`;
-                    }
-                    if (data.running.ten_k_pb !== "N/A") {
-                        pbRow.innerHTML += `<span>10K PB: <strong style="color: white;">${data.running.ten_k_pb}</strong></span>`;
-                    }
-                    if (data.running.half_marathon_pb !== "N/A") {
-                        pbRow.innerHTML += `<span>HM PB: <strong style="color: white;">${data.running.half_marathon_pb}</strong></span>`;
-                    }
-                    if (pbRow.innerHTML === "") {
-                        pbRow.innerHTML = `<span style="color: rgba(255,255,255,0.3); width: 100%; text-align: center;">No recorded run personal bests yet</span>`;
-                    }
+                    const timePercent = Math.min((data.running.monthly_hours / 30.0) * 100, 100);
+                    document.getElementById("run-hours-bar").style.width = `${timePercent}%`;
+                    
+                    document.getElementById("run-total-runs").textContent = data.running.monthly_runs;
+                    
+                    const runInsight = document.getElementById("run-ai-insight");
+                    if (runInsight) runInsight.textContent = data.running.insight;
 
                     // Update Goals
                     const goalsList = document.getElementById("goals-list-box");
                     goalsList.innerHTML = "";
                     
+                    const lifeInsight = document.getElementById("life-ai-insight");
+                    if (lifeInsight) lifeInsight.textContent = data.life_insight || "Keep pushing forward.";
+
                     data.goals.forEach(g => {
                         const progressPercent = Math.min((g.progress / g.total) * 100, 100);
                         const goalCard = document.createElement("div");
@@ -1260,15 +1288,15 @@
                 addConsoleLog("CORAL_SQL", "Failed to reach telemetry dashboard APIs. " + err.message, true);
                 
                 // Explicitly show error states on the UI
-                document.getElementById("chess-rapid-rating").textContent = "ERR";
-                document.getElementById("chess-blitz-rating").textContent = "ERR";
+                if(document.getElementById("chess-total-games")) document.getElementById("chess-total-games").textContent = "ERR";
                 document.getElementById("chess-win-ratio").textContent = "DATA UNAVAILABLE";
                 document.getElementById("chess-win-bar").style.width = "0%";
+                if(document.getElementById("chess-ai-insight")) document.getElementById("chess-ai-insight").textContent = "Offline";
                 
                 document.getElementById("run-avg-pace").textContent = "Pace: OFFLINE";
-                document.getElementById("run-weekly-ratio").textContent = "API DISCONNECTED";
-                document.getElementById("run-weekly-bar").style.width = "0%";
-                document.getElementById("pb-row").innerHTML = `<span style="color: #ff0055;">Strava API Offline / Auth Failed</span>`;
+                if(document.getElementById("run-monthly-ratio")) document.getElementById("run-monthly-ratio").textContent = "API DISCONNECTED";
+                if(document.getElementById("run-monthly-bar")) document.getElementById("run-monthly-bar").style.width = "0%";
+                if(document.getElementById("run-ai-insight")) document.getElementById("run-ai-insight").textContent = "Offline";
                 
                 const goalsList = document.getElementById("goals-list-box");
                 goalsList.innerHTML = `<div style="color: #ff0055; font-size: 11px; font-weight: bold; text-align: center; padding: 10px;">Notion API Offline</div>`;

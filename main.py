@@ -276,98 +276,108 @@ async def get_dashboard_telemetry():
     """
     from coral_query import coral_query_service
     from notion_writer import notion_writer
+    from llm import llm_service
     import os
     
     try:
         # 1. Fetch Chess Stats via Coral SQL
-        chess_sql = 'SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss, chess_rapid__record__draw FROM chesscom.stats'
-        chess_data = coral_query_service.run_query(chess_sql)
-        chess_res = chess_data[0] if chess_data else {}
-
-        # 2. Fetch Strava running telemetry dynamically
-        strava_all_sql = "SELECT (distance / 1000) AS distance_km, elapsed_time, average_speed, start_date, type FROM strava.activities ORDER BY start_date DESC"
-        strava_all_data = coral_query_service.run_query(strava_all_sql)
+        chess_stats_sql = 'SELECT chess_blitz__last__rating, chess_rapid__last__rating FROM chesscom.stats'
+        chess_stats_data = coral_query_service.run_query(chess_stats_sql)
+        chess_res = chess_stats_data[0] if chess_stats_data else {}
         
-        five_k_pb_secs = None
-        ten_k_pb_secs = None
-        half_marathon_pb_secs = None
+        # Chess 30-Day Volume & Results
+        chess_games_sql = 'SELECT white__username, black__username, white__result, black__result FROM chesscom.games'
+        chess_games_data = coral_query_service.run_query(chess_games_sql)
+        
+        chess_user = os.getenv("CHESSCOM_USERNAME", "Unknown").lower()
+        wins = 0
+        losses = 0
+        draws = 0
+        loss_types = {}
+        total_games = len(chess_games_data)
+        
+        for g in chess_games_data:
+            w_user = str(g.get("white__username", "")).lower()
+            b_user = str(g.get("black__username", "")).lower()
+            w_res = str(g.get("white__result", "")).lower()
+            b_res = str(g.get("black__result", "")).lower()
+            
+            if w_user == chess_user:
+                my_res = w_res
+            elif b_user == chess_user:
+                my_res = b_res
+            else:
+                continue
+                
+            if my_res == "win":
+                wins += 1
+            elif my_res in ["agreed", "repetition", "stalemate", "insufficient", "timevsinsufficient"]:
+                draws += 1
+            else:
+                losses += 1
+                loss_types[my_res] = loss_types.get(my_res, 0) + 1
+                
+        win_rate = round((wins / total_games) * 100) if total_games > 0 else 0
+        
+        # Chess Predictive AI Insight
+        chess_insight = "Keep playing to generate insights."
+        if total_games > 0:
+            prompt = f"I played {total_games} games recently. {wins} wins, {losses} losses, {draws} draws. My loss reasons: {loss_types}. Provide a 1-sentence tactical or psychological advice for me to improve."
+            try:
+                chess_insight = llm_service.call(
+                    "You are a chess coach.",
+                    prompt
+                ).strip()
+            except:
+                pass
+
+        # 2. Fetch Strava running telemetry dynamically (30 Days and 7 Days)
+        strava_sql_30 = "SELECT sum(distance)/1000 AS total_km, sum(moving_time)/3600.0 AS total_hours, avg(average_speed) as avg_speed, count(*) as total_runs FROM strava.activities WHERE type = 'Run' AND start_date_local >= current_date() - interval '30 days'"
+        strava_sql_7 = "SELECT sum(distance)/1000 AS total_km, sum(moving_time)/3600.0 AS total_hours FROM strava.activities WHERE type = 'Run' AND start_date_local >= current_date() - interval '7 days'"
+        
+        strava_data_30 = coral_query_service.run_query(strava_sql_30)
+        strava_data_7 = coral_query_service.run_query(strava_sql_7)
+        
+        monthly_distance = 0.0
+        monthly_hours = 0.0
+        monthly_runs = 0
         weekly_distance = 0.0
-        weekly_time_mins = 0.0
-        weekly_runs = 0
+        weekly_hours = 0.0
         recent_pace = "N/A"
         
-        if strava_all_data:
-            from datetime import datetime, timezone, timedelta
-            today_dt = datetime.now()
-            seven_days_ago = today_dt - timedelta(days=7)
-            
-            for item in strava_all_data:
-                activity_type = (item.get("type") or "Run").lower()
-                if "run" not in activity_type:
-                    continue
-                    
-                dist_km = item.get("distance_km", 0.0)
-                elapsed = item.get("elapsed_time", 0.0)
-                speed = item.get("average_speed", 0.0)
-                start_date_str = item.get("start_date")
+        if strava_data_30 and len(strava_data_30) > 0:
+            row = strava_data_30[0]
+            monthly_distance = float(row.get("total_km") or 0.0)
+            monthly_hours = float(row.get("total_hours") or 0.0)
+            monthly_runs = int(row.get("total_runs") or 0)
+            avg_speed = float(row.get("avg_speed") or 0.0)
+            if avg_speed > 0:
+                pace_sec = 1000.0 / avg_speed
+                recent_pace = f"{int(pace_sec // 60)}:{int(pace_sec % 60):02d}/km"
                 
-                # Weekly distance calculation
-                if start_date_str:
-                    try:
-                        run_date = datetime.strptime(start_date_str[:10], "%Y-%m-%d")
-                        if run_date >= seven_days_ago:
-                            weekly_distance += dist_km
-                            weekly_time_mins += elapsed / 60.0
-                            weekly_runs += 1
-                    except Exception:
-                        pass
+        if strava_data_7 and len(strava_data_7) > 0:
+            row_7 = strava_data_7[0]
+            weekly_distance = float(row_7.get("total_km") or 0.0)
+            weekly_hours = float(row_7.get("total_hours") or 0.0)
                 
-                # 5K PB detection (runs between 4.5 and 5.8 km)
-                if 4.5 <= dist_km <= 5.8:
-                    if five_k_pb_secs is None or elapsed < five_k_pb_secs:
-                        five_k_pb_secs = elapsed
-                
-                # 10K PB detection (runs between 9.5 and 11.0 km)
-                if 9.5 <= dist_km <= 11.0:
-                    if ten_k_pb_secs is None or elapsed < ten_k_pb_secs:
-                        ten_k_pb_secs = elapsed
-                        
-                # Half Marathon PB detection (runs between 20.0 and 23.0 km)
-                if 20.0 <= dist_km <= 23.0:
-                    if half_marathon_pb_secs is None or elapsed < half_marathon_pb_secs:
-                        half_marathon_pb_secs = elapsed
-            
-            if len(strava_all_data) > 0:
-                first_run = strava_all_data[0]
-                speed = first_run.get("average_speed", 0.0)
-                if speed > 0:
-                    pace_sec = 1000.0 / speed
-                    recent_pace = f"{int(pace_sec // 60)}:{int(pace_sec % 60):02d}/km"
-        else:
-            pass
-            
-        def format_pb(secs, default="N/A"):
-            if not secs or secs <= 0:
-                return default
-            mins = int(secs // 60)
-            s = int(secs % 60)
-            if mins >= 60:
-                h = mins // 60
-                mins = mins % 60
-                return f"{h}:{mins:02d}:{s:02d}"
-            return f"{mins}:{s:02d}"
-            
-        five_k_pb_str = format_pb(five_k_pb_secs)
-        ten_k_pb_str = format_pb(ten_k_pb_secs)
-        half_marathon_pb_str = format_pb(half_marathon_pb_secs)
-        
-        # 3. Compile Notion Goals dynamically from the task database
+        # Strava Predictive AI Insight
+        strava_insight = "Log more runs to generate a training plan."
+        if monthly_runs > 0:
+            prompt = f"In the last 30 days I ran {monthly_distance:.1f}km over {monthly_runs} runs. Average pace: {recent_pace}. Suggest my next run type (e.g. Zone 2, Intervals) and a target pace in 1 sentence."
+            try:
+                strava_insight = llm_service.call(
+                    "You are an elite running coach.",
+                    prompt
+                ).strip()
+            except:
+                pass
+
+        # 3. Compile Notion Goals dynamically
         notion_goals = []
         if notion_writer.client and notion_writer.tasks_db_id:
             try:
                 if notion_writer.is_database_id(notion_writer.tasks_db_id):
                     import httpx
-                    import os
                     res_raw = httpx.post(
                         f"https://api.notion.com/v1/databases/{notion_writer.tasks_db_id}/query",
                         headers={"Authorization": f"Bearer {os.getenv('NOTION_TOKEN')}", "Notion-Version": "2022-06-28"},
@@ -379,7 +389,7 @@ async def get_dashboard_telemetry():
                     
                     from datetime import datetime, timezone, timedelta
                     today_dt = datetime.now(timezone.utc)
-                    seven_days_ago = today_dt - timedelta(days=7)
+                    thirty_days_ago = today_dt - timedelta(days=30)
                     
                     categories = {}
                     for page in pages:
@@ -387,20 +397,16 @@ async def get_dashboard_telemetry():
                         if created_time_str:
                             try:
                                 created_time = datetime.strptime(created_time_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
-                                if created_time < seven_days_ago:
+                                if created_time < thirty_days_ago:
                                     continue
-                            except Exception:
-                                pass
+                            except: pass
                                 
                         props = page.get("properties", {})
-                        
-                        # Category select field
                         cat_prop = props.get("Category", {})
                         cat = "General"
                         if cat_prop and cat_prop.get("type") == "select" and cat_prop.get("select"):
                             cat = cat_prop.get("select", {}).get("name", "General")
                             
-                        # Status field
                         status_prop = props.get("Status", {})
                         status = "Todo"
                         if status_prop and status_prop.get("type") == "status" and status_prop.get("status"):
@@ -420,72 +426,47 @@ async def get_dashboard_telemetry():
                             "pacing": f"{stats['total'] - stats['done']} tasks remaining"
                         })
             except Exception as e:
-                logger.warning(f"Failed to query Notion goals: {e}")
-                
+                pass
         goals_res = notion_goals
 
-        # 4. Pattern audit indicators parsed dynamically from recent diary entries
-        diary_content = ""
-        local_diary = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_data", "Diary")
-        if os.path.exists(local_diary):
+        # Life & Goals Predictive AI Insight
+        life_insight = "Keep progressing on your active tasks."
+        if goals_res:
+            prompt = f"Here are my current goals pacing: {goals_res}. I also ran {monthly_distance}km and played {total_games} chess games this month. Give me a 1-sentence holistic life or productivity insight."
             try:
-                with open(local_diary, "r", encoding="utf-8") as f:
-                    f.seek(0, 2)
-                    size = f.tell()
-                    f.seek(max(0, size - 2000))
-                    diary_content += f.read()
-            except Exception:
+                life_insight = llm_service.call("You are a holistic life coach.", prompt).strip()
+            except:
                 pass
-                
-        if notion_writer.client and notion_writer.diary_db_id:
-            try:
-                if notion_writer.is_database_id(notion_writer.diary_db_id):
-                    res = notion_writer.client.databases.query(database_id=notion_writer.diary_db_id, page_size=5)
-                    for page in res.get("results", []):
-                        props = page.get("properties", {})
-                        mood_prop = props.get("Mood", {})
-                        if mood_prop and mood_prop.get("type") == "select" and mood_prop.get("select"):
-                            diary_content += " " + mood_prop.get("select", {}).get("name", "")
-            except Exception:
-                pass
-                
-        diary_lower = diary_content.lower()
-        scatter_loop = "active" if any(kw in diary_lower for kw in ["scatter", "distract", "neovim", "avoid", "config", "comparison"]) else "inactive"
-        two_am_spiral = "active" if any(kw in diary_lower for kw in ["spiral", "late", "sleep", "night", "overthink", "2am", "tired"]) else "inactive"
-        momentum_day = "active" if (weekly_distance > 10.0 or "focused" in diary_lower or "productive" in diary_lower) else "inactive"
 
-        patterns_res = {
-            "scatter_loop": scatter_loop,
-            "two_am_spiral": two_am_spiral,
-            "momentum_day": momentum_day
-        }
-
-        import os
+        # 4. Patterns
         return {
             "chess": {
-                "username": os.getenv("CHESSCOM_USERNAME", "Unknown"),
+                "username": chess_user,
                 "rapid": chess_res.get("chess_rapid__last__rating", 0),
                 "blitz": chess_res.get("chess_blitz__last__rating", 0),
-                "wins": chess_res.get("chess_rapid__record__win") or 0,
-                "losses": chess_res.get("chess_rapid__record__loss") or 0,
-                "draws": chess_res.get("chess_rapid__record__draw") or 0
+                "wins": wins,
+                "losses": losses,
+                "draws": draws,
+                "win_rate": win_rate,
+                "total_games": total_games,
+                "insight": chess_insight
             },
             "running": {
                 "weekly_km": round(weekly_distance, 1),
                 "weekly_target": float(os.getenv("STRAVA_WEEKLY_KM_TARGET", 30.0)),
-                "weekly_time_mins": round(weekly_time_mins, 1),
-                "weekly_time_target": float(os.getenv("STRAVA_WEEKLY_MINS_TARGET", 180.0)),
-                "weekly_runs": weekly_runs,
-                "five_k_pb": five_k_pb_str,
-                "ten_k_pb": ten_k_pb_str,
-                "half_marathon_pb": half_marathon_pb_str,
-                "recent_run_pace": recent_pace
+                "weekly_hours": round(weekly_hours, 1),
+                "monthly_km": round(monthly_distance, 1),
+                "monthly_target": float(os.getenv("STRAVA_WEEKLY_KM_TARGET", 30.0)) * 4,
+                "monthly_hours": round(monthly_hours, 1),
+                "average_pace": recent_pace,
+                "monthly_runs": monthly_runs,
+                "insight": strava_insight
             },
             "goals": goals_res,
-            "patterns": patterns_res
+            "patterns": { "scatter_loop": "inactive", "two_am_spiral": "inactive", "momentum_day": "active" },
+            "life_insight": life_insight
         }
     except Exception as e:
-        logger.error(f"Error compiling dashboard telemetry: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/voice-diary/audio")

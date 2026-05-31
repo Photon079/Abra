@@ -71,9 +71,20 @@ class LLMService:
         """Call Groq API. Returns response text or None on failure."""
         if not self.groq_client:
             return None
+            
+        # Groq free tier is strictly 6000 TPM. 
+        # Capping system_prompt to 10k chars (~2500 tokens) and user_message to 8k chars (~2000 tokens)
+        if len(system_prompt) > 10000:
+            logger.warning("Truncating system prompt for Groq...")
+            system_prompt = system_prompt[:10000] + "\n...[TRUNCATED]"
+            
+        if len(user_message) > 8000:
+            logger.warning("Truncating user message for Groq...")
+            user_message = user_message[:8000] + "\n...[TRUNCATED]"
+            
         try:
             # Fallback to model with larger free tier TPM limit
-            model = "llama3-8b-8192"
+            model = "llama-3.1-8b-instant"
             chat_completion = self.groq_client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -126,18 +137,8 @@ class LLMService:
                             logger.warning(f"Gemini daily free tier quota exhausted for {model_name}. Skipping to next model.")
                             break  # Skip retries, try next model
                         
-                        # Temporary rate limit — retry with backoff
-                        import re
-                        wait_time = min(2 ** attempt * 5, 20)  # 5s, 10s, 20s
-                        
-                        delay_match = re.search(r'retryDelay.*?(\d+)', error_str)
-                        if delay_match:
-                            suggested = int(delay_match.group(1))
-                            wait_time = min(suggested + 2, 35)  # Cap at 35s
-                        
-                        logger.warning(f"Gemini 429 rate limit on {model_name} (attempt {attempt + 1}/3). Waiting {wait_time}s before retry...")
-                        time.sleep(wait_time)
-                        continue
+                        logger.warning(f"Gemini 429 rate limit on {model_name} (attempt {attempt + 1}/3). Failing fast to avoid blocking UI...")
+                        break  # Fail fast instead of sleeping
                     else:
                         logger.error(f"Gemini API call failed (model: {model_name}): {e}")
                         break  # Non-retryable error, try next model
@@ -212,13 +213,6 @@ class LLMService:
             logger.error(f"OpenRouter API exception: {e}")
             return None
 
-    def _call_ollama(self, system_prompt: str, user_message: str, response_format_json: bool = False) -> Optional[str]:
-        import httpx
-        try:
-            # 1. Fetch available models from Ollama to see what they have installed
-            res_tags = httpx.get("http://localhost:11434/api/tags", timeout=3.0)
-            if res_tags.status_code != 200:
-                return None
             models = [m["name"] for m in res_tags.json().get("models", [])]
             if not models:
                 return None
@@ -271,10 +265,7 @@ class LLMService:
             providers.append(("Groq", self._call_groq))
 
 
-        elif self.provider == "ollama":
-            providers.append(("Ollama", self._call_ollama))
-            
-        # 2. Add other active providers dynamically if keys are present
+# 2. Add other active providers dynamically if keys are present
         if self.gemini_key and ("Gemini", self._call_gemini) not in providers:
             providers.append(("Gemini", self._call_gemini))
         if self.groq_key and ("Groq", self._call_groq) not in providers:
@@ -282,11 +273,7 @@ class LLMService:
 
 
             
-        # 3. Always append Ollama as the ultimate unlimited, offline local fallback!
-        if ("Ollama", self._call_ollama) not in providers:
-            providers.append(("Ollama", self._call_ollama))
-            
-        # Try each provider in sequence
+# Try each provider in sequence
         for name, fn in providers:
             try:
                 logger.info(f"Attempting API call via {name}...")

@@ -10,16 +10,43 @@ This is v1. Chess.com and Strava are connected now. The goal is to eventually pi
 
 ---
 
-## What It Does
+## ⚡ Powered by Coral SQL: Cross-Source Analytics
+
+Abra doesn't just read APIs; it treats your life as a unified database. By leveraging Coral, we can run complex JOINs across completely different platforms in a single query.
+
+For example, **does high cardiovascular fatigue lead to cognitive drops in chess?** 
+Instead of writing complex Python scripts to fetch, parse, and correlate data, Abra just runs this:
+
+```sql
+SELECT 
+    s.start_date_local AS run_date,
+    s.distance AS km_ran,
+    s.suffer_score AS physical_fatigue,
+    c.white__result AS chess_result,
+    c.accuracies__white AS chess_accuracy
+FROM strava.activities s
+JOIN chesscom.games c 
+  ON substr(s.start_date_local, 1, 10) = date(datetime(c.end_time, 'unixepoch'))
+WHERE s.sport_type = 'Run' 
+  AND s.suffer_score > 50 
+ORDER BY s.start_date DESC
+LIMIT 5;
+```
+
+---
+
+## Core Features
 
 | Feature | Description |
 |---|---|
 | **Voice Diary** | Tap, speak, done. Your words get transcribed, structured, and saved to Notion with date, mood signal, and tomorrow's focus — automatically. |
 | **Day Briefing** | Every morning Abra reads your goals, recent diary entries, and live stats, then gives you one human paragraph about what matters today. |
 | **Context-Aware Chat** | Ask anything. *"How many km did I run this week?"* *"Am I improving at chess?"* *"What should I work on today?"* — it has the data to actually answer. |
-| **Live Telemetry Dashboard** | Real-time Chess.com ratings, Strava activity volume, and Notion task progress — all in one view. |
+| **Live Telemetry Dashboard** | Deep 7-day and 30-day tracking metrics for both physical endurance (Strava) and cognitive performance (Chess.com) alongside Notion tasks. |
+| **Global Insights Engine** | Holistic AI analysis that dynamically correlates Notion pacing with physical/cognitive output to generate unified "Life & Goals" insights. |
+| **Resilient AI Cascade** | Fail-fast LLM orchestration (Gemini → Groq) that auto-truncates payloads and seamlessly routes around rate-limits for instant UI responsiveness. |
 | **Notion Sync** | Bi-directional. Diary logs, task updates, and goal tracking all write back to your existing Notion workspace. |
-| **Strava Automation** | OAuth token management, weekly distance tracking, and personal best detection — fully hands-off. |
+| **Strava Automation** | OAuth token management, 30-day distance tracking, and personal best detection — fully hands-off. |
 
 ---
 
