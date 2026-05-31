@@ -45,7 +45,7 @@ class LLMService:
         self.gemini_client = None
 
         # Gemini model fallback chain
-        self.gemini_models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro"]
+        self.gemini_models = ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-flash-latest", "gemini-pro-latest"]
 
         logger.info(f"Initializing LLMService. Configured provider: {self.provider.upper()}")
 
@@ -72,7 +72,8 @@ class LLMService:
         if not self.groq_client:
             return None
         try:
-            model = "llama-3.3-70b-versatile"
+            # Fallback to model with larger free tier TPM limit
+            model = "llama3-8b-8192"
             chat_completion = self.groq_client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -268,10 +269,8 @@ class LLMService:
             providers.append(("Gemini", self._call_gemini))
         elif self.provider == "groq":
             providers.append(("Groq", self._call_groq))
-        elif self.provider == "cerebras":
-            providers.append(("Cerebras", self._call_cerebras))
-        elif self.provider == "openrouter":
-            providers.append(("OpenRouter", self._call_openrouter))
+
+
         elif self.provider == "ollama":
             providers.append(("Ollama", self._call_ollama))
             
@@ -280,10 +279,8 @@ class LLMService:
             providers.append(("Gemini", self._call_gemini))
         if self.groq_key and ("Groq", self._call_groq) not in providers:
             providers.append(("Groq", self._call_groq))
-        if self.cerebras_key and ("Cerebras", self._call_cerebras) not in providers:
-            providers.append(("Cerebras", self._call_cerebras))
-        if self.openrouter_key and ("OpenRouter", self._call_openrouter) not in providers:
-            providers.append(("OpenRouter", self._call_openrouter))
+
+
             
         # 3. Always append Ollama as the ultimate unlimited, offline local fallback!
         if ("Ollama", self._call_ollama) not in providers:
@@ -299,92 +296,9 @@ class LLMService:
             except Exception as e:
                 logger.warning(f"Provider {name} raised exception: {e}")
                 
-        # 4. High-Fidelity Mock Response (Fallback for safe sandbox demonstration)
-        logger.warning("All LLM providers failed. Using mock response.")
-        return self._get_mock_response(user_message, response_format_json)
-
-    def _get_mock_response(self, user_message: str, response_format_json: bool) -> str:
-        import json
-        msg_lower = user_message.lower()
-
-        if response_format_json:
-            if "diary" in msg_lower or "log" in msg_lower:
-                return json.dumps({
-                    "summary": "Ran 6K in 32 minutes (felt good). Solved 3 NeetCode problems. Programmed Chess.com source spec for Abra OS.",
-                    "mood": "Focused",
-                    "activities": ["Running", "Coding", "Chess"],
-                    "decisions": "Determined to avoid stack switches and finish Abra by May 31.",
-                    "tomorrow_focus": "Integrate pattern warnings and check Notion database connections."
-                })
-            elif "goal" in msg_lower or "decompose" in msg_lower:
-                return json.dumps({
-                    "explanation": "To finish NeetCode 150 by July 31 (61 days left), we need exactly 2.4 problems per day. Pacing at 3 on study blocks and 1 on workout days.",
-                    "tasks": [
-                        {"title": "NeetCode: Two Pointers Section (3 problems)", "deadline": "2026-05-27", "category": "Career", "target": "Container With Most Water, 3sum, valid palindrome"},
-                        {"title": "NeetCode: Sliding Window Section (3 problems)", "deadline": "2026-05-29", "category": "Career", "target": "Best time to buy/sell stock, longest substring"}
-                    ]
-                })
-            return "{}"
-
-        # Markdown briefings/reflection mocks conforming to direct tone laws
-        if "briefing" in msg_lower or "should i work on" in msg_lower:
-            return """### Morning OS Briefing 🌅
-**Calendar Today:**
-- ML CS229 Lecture Review (11:30 AM)
-- Run 6K Grounding session (4:15 PM)
-- Abra Core coding (6:00 PM)
-
-**Core Focus Block:**
-Forget the noise on LinkedIn, bruh. Focus for the next 45 minutes on finishing the calendar spec. That is your only priority.
-
-**Pattern Check:**
-⚠️ **Scatter Loop detected.** You switched from CS229 to looking up Rust pipelines yesterday. Stop bouncing between stacks. Stick to your active commitments.
-"""
-        elif "reflection" in msg_lower or "pattern" in msg_lower:
-            return """### Behavior Reflection audit 🔍
-Brutal honesty, bruh:
-1. **Scatter Loop**: You spent 3 hours yesterday comparing Neovim configs instead of practicing DSA. This is task avoidance.
-2. **2 AM Spiral**: You logged a diary entry at 2:15 AM searching about career timelines. You cannot solve a 2-year plan at midnight. Drink water, sleep. The morning run is the reset.
-3. **Friend Isolation**: You haven't texted Sinchana or Srinidhi back in 2 days because you're 'busy' vibing. Reliable connections are critical. Send a quick text.
-"""
-        # Dynamic local telemetry fallbacks for rate limits
-        if any(kw in msg_lower for kw in ["run", "strava", "running", "mileage", "km", "pace", "pb"]):
-            from coral_query import coral_query_service
-            try:
-                sql = "SELECT name, (distance / 1000.0) as dist_km, elapsed_time, type, start_date FROM strava.activities"
-                runs = coral_query_service.run_query(sql)
-                if runs:
-                    running_list = [r for r in runs if "run" in (r.get("type") or "Run").lower()]
-                    total_runs = len(running_list)
-                    if total_runs > 0:
-                        total_dist = sum(r.get("dist_km", 0.0) for r in running_list)
-                        run_items = []
-                        for r in running_list[:5]:
-                            elapsed = r.get("elapsed_time", 0.0)
-                            mins = int(elapsed // 60)
-                            secs = int(elapsed % 60)
-                            time_str = f"{mins}:{secs:02d}" if mins < 60 else f"{mins//60}:{mins%60:02d}:{secs:02d}"
-                            dist_str = f"{r.get('dist_km', 0.0):.2f}k"
-                            date_str = r.get("start_date", "")[:10]
-                            run_items.append(f"- **{r.get('name')}**: {dist_str} in {time_str} ({date_str})")
-                        
-                        return f"### Live Strava Audit (LLM Offline Fallback) 🏃‍♂️\n\nI queried your live Strava data directly using Coral CLI. Here is your authentic profile summary:\n\n* **Total Running Activities**: {total_runs} runs\n* **Total Running Volume**: {total_dist:.2f} km\n\n**Your 5 most recent runs:**\n" + "\n".join(run_items) + "\n\n**Verdict**: You have excellent running momentum! Keep maintaining your weekly volume target to stay consistent."
-            except Exception:
-                pass
-            return "I can see your Strava running history! You have completed runs this week with a dynamic volume target. Maintain consistency, bruh! Let's get that run in."
-
-        if any(kw in msg_lower for kw in ["chess", "rating", "blitz", "rapid", "game"]):
-            from coral_query import coral_query_service
-            try:
-                sql = "SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats"
-                chess = coral_query_service.run_query(sql)
-                if chess:
-                    c = chess[0]
-                    return f"### Chess.com Live Audit (LLM Offline Fallback) ♟️\n\nHere are your real-time ratings fetched live via Coral:\n\n* **Rapid Rating**: **{c.get('chess_rapid__last__rating', 1154)}**\n* **Blitz Rating**: **{c.get('chess_blitz__last__rating', 1332)}**\n* **Rapid Record**: {c.get('chess_rapid__record__win', 82)} Wins / {c.get('chess_rapid__record__loss', 55)} Losses\n\n**Verdict**: Looking strong! Analyze your mistakes on rapid matches and avoid late-night blitz spirals."
-            except Exception:
-                pass
-
-        return "I am ABRA. Let's write some code, bruh. What is the single thing we are doing for the next 45 minutes?"
+        # 4. Fail Fast - No Simulation Policy
+        logger.error("All LLM providers failed. Raising exception.")
+        raise RuntimeError("All cloud LLMs hit rate limits and local Ollama timed out. Failing fast.")
 
 # Global single instance
 llm_service = LLMService()

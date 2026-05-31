@@ -20,59 +20,61 @@ class MemoryLoader:
         else:
             logger.warning("No NOTION_TOKEN env variable found. Using local files fallback.")
 
+    def _fetch_page_text(self, page_id: str) -> str:
+        """Helper to recursively fetch text blocks from a Notion page."""
+        if not self.client: return ""
+        try:
+            blocks = self.client.blocks.children.list(block_id=page_id).get("results", [])
+            extracted = []
+            for block in blocks:
+                block_type = block.get("type")
+                if block_type and isinstance(block.get(block_type), dict):
+                    rich_texts = block[block_type].get("rich_text", [])
+                    text = "".join([rt.get("plain_text", "") for rt in rich_texts])
+                    if text:
+                        extracted.append(text)
+            return "\n".join(extracted)
+        except Exception as e:
+            logger.error(f"Error reading Notion page {page_id}: {e}")
+            return ""
+
     def load_brain_files(self) -> Dict[str, str]:
         """
-        Loads user background files from Notion or falls back to local markdown files
-        located in '/home/anish/Documents/Anish/files/' to build the live agent memory.
+        Loads user background files purely from the Notion API sub-pages.
         """
         context = {
             "master_profile": "No profile details loaded.",
             "current_goals": "No goals details loaded.",
             "mental_patterns": "No patterns details loaded.",
-            "people_in_my_life": "Srinidhi Shetty (Best Friend since Class 8), Sinchana (College Friend), Vedanth (Hometown Friend), Ajay (Project Collaborator), Darshini (Distant Friend).",
-            "system_prompt": "You are ABRA — Anish's Personal Life OS. Speak normally, directly, and without fluff."
+            "people_in_my_life": "",
+            "system_prompt": "You are ABRA — a Personal Life OS. Speak normally, directly, and without fluff."
         }
 
-        # 1. Attempt Local Files Load (highly reliable sandbox fallback)
-        local_dir = "/home/anish/Documents/Anish/files"
-        local_mappings = {
-            "master_profile": "master_profile_anish_2026.md",
-            "current_goals": "career_plan.md",
-            "mental_patterns": "patterns_for_ai_interaction.md"
-        }
+        if not self.client or not self.brain_page_id:
+            logger.warning("Notion client or brain_page_id missing. Brain will be empty.")
+            return context
 
-        loaded_locally = False
-        if os.path.exists(local_dir):
-            try:
-                for key, filename in local_mappings.items():
-                    filepath = os.path.join(local_dir, filename)
-                    if os.path.exists(filepath):
-                        with open(filepath, 'r', encoding='utf-8') as f:
-                            context[key] = f.read()
-                loaded_locally = True
-                logger.info("Successfully populated brain files from local documents path.")
-            except Exception as e:
-                logger.error(f"Error loading from local documents path: {e}")
+        try:
+            # Query child pages of the parent brain page
+            blocks = self.client.blocks.children.list(block_id=self.brain_page_id).get("results", [])
+            
+            for block in blocks:
+                if block.get("type") == "child_page":
+                    title = block["child_page"].get("title", "").lower()
+                    page_id = block["id"]
+                    
+                    if "profile" in title or "who" in title or "story" in title:
+                        context["master_profile"] = self._fetch_page_text(page_id)
+                    elif "goal" in title or "career" in title or "plan" in title:
+                        context["current_goals"] = self._fetch_page_text(page_id)
+                    elif "pattern" in title or "interaction" in title:
+                        context["mental_patterns"] = self._fetch_page_text(page_id)
+                    elif "people" in title or "social" in title:
+                        context["people_in_my_life"] = self._fetch_page_text(page_id)
 
-        # 2. Attempt Notion API (if token and parent page are present)
-        if self.client and self.brain_page_id and not loaded_locally:
-            try:
-                # We query sub-pages under the parent brain page ID
-                blocks = self.client.blocks.children.list(block_id=self.brain_page_id)
-                extracted_text = []
-                for block in blocks.get("results", []):
-                    block_type = block.get("type")
-                    if block_type and isinstance(block.get(block_type), dict):
-                        rich_texts = block[block_type].get("rich_text", [])
-                        text = "".join([rt.get("plain_text", "") for rt in rich_texts])
-                        if text:
-                            extracted_text.append(text)
-                
-                if extracted_text:
-                    context["master_profile"] = "\n".join(extracted_text)
-                logger.info("Successfully fetched brain details from Notion workspace.")
-            except Exception as e:
-                logger.error(f"Notion API error fetching brain files: {e}")
+            logger.info("Successfully fetched brain details from Notion sub-pages.")
+        except Exception as e:
+            logger.error(f"Notion API error fetching brain files: {e}")
 
         return context
 
@@ -102,6 +104,16 @@ class MemoryLoader:
 4. **MATCH ENERGY**: Speak naturally, using direct peer terminology (e.g. "bruh" or "fine" naturally when appropriate).
 5. **ONE ACTION AT A TIME**: If Anish is paralyzed, give him exactly ONE concrete task. Don't throw lists at him.
 6. **PHYSICAL ANCHOR**: If he's late-night overthinking (past midnight), order him to drink water, sleep immediately, and reset on his morning run.
+7. **PRIVACY LAW**: Never proactively mention sensitive personal details (finances/money, suicide history, Sahana/past relationships, upbringing, or being vegetarian) unless explicitly asked.
+
+### SYSTEM CAPABILITIES (YOU HAVE WRITE ACCESS):
+If Anish asks you to update a Notion task (e.g. "mark landslide paper as done"), you MUST include this exact string anywhere in your response:
+`[UPDATE_TASK: <exact task name>]` (e.g. `[UPDATE_TASK: landslide paper]`)
+If Anish asks you to update a brain file (e.g. "update my master profile"), you MUST include this exact format in your response:
+`[UPDATE_BRAIN: <file_key>]\n<new markdown content>\n[END_UPDATE]`
+(Valid file_keys: master_profile, current_goals, mental_patterns).
+
+NEVER say "I cannot access or edit your workspace". You have full system access. Just output the correct command and the backend will execute it.
 """
         return prompt
 

@@ -11,6 +11,7 @@ class NotionWriter:
         self.notion_token = os.getenv("NOTION_TOKEN")
         self.diary_db_id = os.getenv("NOTION_DIARY_DB_ID")
         self.tasks_db_id = os.getenv("NOTION_TASKS_DB_ID")
+        self.brain_page_id = os.getenv("NOTION_BRAIN_PAGE_ID")
         self.client = None
 
         if self.notion_token:
@@ -21,6 +22,7 @@ class NotionWriter:
                 logger.error(f"Failed to initialize Notion Client inside NotionWriter: {e}")
         else:
             logger.warning("No Notion API configurations provided. Operating in local write-back simulation.")
+        self._is_db_cache = {}
 
     def is_database_id(self, target_id: str) -> bool:
         """
@@ -28,13 +30,27 @@ class NotionWriter:
         """
         if not self.client or not target_id:
             return False
+            
+        if target_id in self._is_db_cache:
+            return self._is_db_cache[target_id]
+            
         try:
+            # Temporarily suppress the notion_client logger to avoid spam on expected 400 errors
+            notion_logger = logging.getLogger("notion_client")
+            old_level = notion_logger.level
+            notion_logger.setLevel(logging.ERROR)
+            
             self.client.databases.retrieve(database_id=target_id)
+            
+            notion_logger.setLevel(old_level)
+            self._is_db_cache[target_id] = True
             return True
         except Exception:
+            notion_logger.setLevel(old_level)
+            self._is_db_cache[target_id] = False
             return False
 
-    def write_diary(self, summary: str, mood: str, activities: List[str], key_decisions: str, tomorrow_focus: str) -> Optional[str]:
+    def write_diary(self, summary: str, mood: str, activities: List[str], key_decisions: str, tomorrow_focus: str, raw_transcript: str = None) -> Optional[str]:
         """
         Appends a diary entry to a Notion Diary Database OR a simple Page block stream.
         If offline, falls back to logging locally in `/home/anish/Documents/Anish/Daily/Diary`.
@@ -43,7 +59,7 @@ class NotionWriter:
         
         if not self.client or not self.diary_db_id:
             logger.warning("Notion offline fallback. Simulating diary write.")
-            diary_dir = "/home/anish/Documents/Anish/Daily"
+            diary_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_data")
             os.makedirs(diary_dir, exist_ok=True)
             diary_file = os.path.join(diary_dir, "Diary")
             
@@ -101,6 +117,20 @@ class NotionWriter:
                         }
                     })
                 
+                if raw_transcript:
+                    blocks.extend([
+                        {
+                            "object": "block",
+                            "type": "heading_2",
+                            "heading_2": {"rich_text": [{"type": "text", "text": {"content": "Raw Audio Transcript"}}]}
+                        },
+                        {
+                            "object": "block",
+                            "type": "paragraph",
+                            "paragraph": {"rich_text": [{"type": "text", "text": {"content": raw_transcript}}]}
+                        }
+                    ])
+                
                 self.client.blocks.children.append(block_id=self.diary_db_id, children=blocks)
                 logger.info("Successfully appended structured log to simple Notion diary page.")
                 return "page_append_success"
@@ -110,6 +140,54 @@ class NotionWriter:
 
         # Database standard structure fallback
         try:
+            children = [
+                {
+                    "object": "block",
+                    "type": "heading_2",
+                    "heading_2": {"rich_text": [{"text": {"content": "Summary"}}]}
+                },
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"text": {"content": summary}}]}
+                },
+                {
+                    "object": "block",
+                    "type": "heading_2",
+                    "heading_2": {"rich_text": [{"text": {"content": "Key Decisions"}}]}
+                },
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"text": {"content": key_decisions}}]}
+                },
+                {
+                    "object": "block",
+                    "type": "heading_2",
+                    "heading_2": {"rich_text": [{"text": {"content": "Suggested Focus for Tomorrow"}}]}
+                },
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": [{"text": {"content": tomorrow_focus}}]}
+                }
+            ]
+            
+            # Look up for raw_transcript injection
+            if raw_transcript:
+                children.extend([
+                    {
+                        "object": "block",
+                        "type": "heading_2",
+                        "heading_2": {"rich_text": [{"text": {"content": "Raw Audio Transcript"}}]}
+                    },
+                    {
+                        "object": "block",
+                        "type": "paragraph",
+                        "paragraph": {"rich_text": [{"text": {"content": raw_transcript}}]}
+                    }
+                ])
+            
             new_page = self.client.pages.create(
                 parent={"database_id": self.diary_db_id},
                 properties={
@@ -117,38 +195,7 @@ class NotionWriter:
                     "Mood": {"select": {"name": mood}},
                     "Activities Logged": {"multi_select": [{"name": act} for act in activities]}
                 },
-                children=[
-                    {
-                        "object": "block",
-                        "type": "heading_2",
-                        "heading_2": {"rich_text": [{"text": {"content": "Summary"}}]}
-                    },
-                    {
-                        "object": "block",
-                        "type": "paragraph",
-                        "paragraph": {"rich_text": [{"text": {"content": summary}}]}
-                    },
-                    {
-                        "object": "block",
-                        "type": "heading_2",
-                        "heading_2": {"rich_text": [{"text": {"content": "Key Decisions"}}]}
-                    },
-                    {
-                        "object": "block",
-                        "type": "paragraph",
-                        "paragraph": {"rich_text": [{"text": {"content": key_decisions}}]}
-                    },
-                    {
-                        "object": "block",
-                        "type": "heading_2",
-                        "heading_2": {"rich_text": [{"text": {"content": "Suggested Focus for Tomorrow"}}]}
-                    },
-                    {
-                        "object": "block",
-                        "type": "paragraph",
-                        "paragraph": {"rich_text": [{"text": {"content": tomorrow_focus}}]}
-                    }
-                ]
+                children=children
             )
             logger.info("Successfully wrote diary entry page to Notion diary DB.")
             return new_page.get("id")
@@ -166,7 +213,7 @@ class NotionWriter:
         
         if not self.client or not self.tasks_db_id:
             logger.warning("Notion offline fallback. Simulating task creation.")
-            todo_dir = "/home/anish/Documents/Anish/Daily"
+            todo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_data")
             os.makedirs(todo_dir, exist_ok=True)
             todo_file = os.path.join(todo_dir, "Todo")
             
@@ -240,6 +287,111 @@ class NotionWriter:
         except Exception as e:
             logger.error(f"Notion API error creating task in database: {e}")
             return None
+
+    def update_task_status(self, task_name: str, new_status: str = "Done") -> bool:
+        """
+        Queries the Notion Tasks DB for a task matching the name and updates its status.
+        """
+        if not self.client or not self.tasks_db_id or not self.is_database_id(self.tasks_db_id):
+            logger.warning("Cannot update task: Notion DB not available or offline.")
+            return False
+            
+        try:
+            res = self.client.databases.query(
+                database_id=self.tasks_db_id,
+                filter={
+                    "property": "Task Name",
+                    "title": {
+                        "contains": task_name
+                    }
+                },
+                page_size=1
+            )
+            
+            results = res.get("results", [])
+            if not results:
+                logger.warning(f"Task '{task_name}' not found in Notion DB.")
+                return False
+                
+            page_id = results[0]["id"]
+            self.client.pages.update(
+                page_id=page_id,
+                properties={
+                    "Status": {"status": {"name": new_status}}
+                }
+            )
+            logger.info(f"Successfully updated task '{task_name}' to '{new_status}' in Notion.")
+            return True
+        except Exception as e:
+            logger.error(f"Notion API error updating task '{task_name}': {e}")
+            return False
+
+    def update_brain_file(self, file_key: str, new_content: str) -> bool:
+        """
+        Overwrites a Notion sub-page with new content from the LLM.
+        """
+        if not self.client or not self.brain_page_id:
+            logger.error("Notion client or brain page missing. Cannot update brain.")
+            return False
+
+        try:
+            # 1. Find child page ID by partial title match
+            blocks = self.client.blocks.children.list(block_id=self.brain_page_id).get("results", [])
+            target_page_id = None
+            for block in blocks:
+                if block.get("type") == "child_page":
+                    title = block["child_page"].get("title", "").lower()
+                    if file_key == "master_profile" and ("profile" in title or "who" in title or "story" in title):
+                        target_page_id = block["id"]
+                        break
+                    elif file_key == "current_goals" and ("goal" in title or "career" in title or "plan" in title):
+                        target_page_id = block["id"]
+                        break
+                    elif file_key == "mental_patterns" and ("pattern" in title or "interaction" in title):
+                        target_page_id = block["id"]
+                        break
+                    elif file_key == "people_in_my_life" and ("people" in title or "social" in title):
+                        target_page_id = block["id"]
+                        break
+
+            if not target_page_id:
+                logger.error(f"Could not find a Notion sub-page matching file_key: {file_key}")
+                return False
+
+            # 2. Delete all existing blocks inside that page
+            page_blocks = self.client.blocks.children.list(block_id=target_page_id).get("results", [])
+            for block in page_blocks:
+                self.client.blocks.delete(block_id=block["id"])
+
+            # 3. Append new content in chunks
+            paragraphs = new_content.split("\n\n")
+            children = []
+            for p in paragraphs:
+                p = p.strip()
+                if not p: continue
+                # Chunk into 2000 char pieces (Notion API limits text objects to 2000 chars)
+                for i in range(0, len(p), 2000):
+                    chunk = p[i:i+2000]
+                    children.append({
+                        "object": "block",
+                        "type": "paragraph",
+                        "paragraph": {
+                            "rich_text": [{"type": "text", "text": {"content": chunk}}]
+                        }
+                    })
+
+            # Append all blocks at once (max 100 children per request)
+            for i in range(0, len(children), 100):
+                self.client.blocks.children.append(
+                    block_id=target_page_id,
+                    children=children[i:i+100]
+                )
+
+            logger.info(f"Successfully updated Notion brain page for {file_key}")
+            return True
+        except Exception as e:
+            logger.error(f"Notion API error updating brain file {file_key}: {e}")
+            return False
 
 # Global single instance
 notion_writer = NotionWriter()

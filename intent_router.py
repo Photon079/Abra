@@ -8,11 +8,13 @@ INTENT_PATTERNS = {
     "diary": [
         "add this to today", "add to today", "add to diary", "add to notes",
         "log this", "log today", "save this", "record this",
-        "note this down", "write this down", "diary entry"
+        "note this down", "write this down", "diary entry",
+        "write in notion", "write to notion", "write this in notion"
     ],
     "goal_decomposition": [
         "decompose", "break down this goal", "plan for", "create a plan",
-        "training plan", "help me achieve", "set goal"
+        "training plan", "help me achieve", "set goal",
+        "create a task", "add a task", "new task", "make a task"
     ],
     "daily_briefing": [
         "briefing", "brief me", "today's plan", "morning briefing",

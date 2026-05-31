@@ -1,11 +1,14 @@
-import sys
+import os
 import re
-import urllib.parse
 import requests
+from pathlib import Path
+from dotenv import load_dotenv
 
-CLIENT_ID = "251691"
-CLIENT_SECRET = "4294872d50a3e274f9f508cc0f4309265b86d9f9"
-ENV_PATH = "/home/anish/Abra/.env"
+ENV_PATH = Path(__file__).parent / ".env"
+load_dotenv(ENV_PATH)
+
+CLIENT_ID = os.getenv("STRAVA_CLIENT_ID", "")
+CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET", "")
 
 def main():
     print("=== STRAVA OAUTH EXCHANGE HELPER ===")

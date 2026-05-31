@@ -70,7 +70,8 @@ Structure standard JSON strictly with the following fields:
         mood=log_data["mood"],
         activities=log_data["activities"],
         key_decisions=log_data["decisions"],
-        tomorrow_focus=log_data["tomorrow_focus"]
+        tomorrow_focus=log_data["tomorrow_focus"],
+        raw_transcript=user_input
     )
 
     # 4. Compile Markdown response

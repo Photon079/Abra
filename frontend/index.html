@@ -501,25 +501,107 @@
         }
 
         .briefing-box {
-            font-size: 13px;
-            line-height: 1.6;
-            color: rgba(255, 255, 255, 0.85);
-        }
-
-        .briefing-box h3 {
-            font-family: var(--font-display);
-            font-size: 14px;
-            color: var(--text-header);
-            margin: 16px 0 8px 0;
             display: flex;
-            align-items: center;
-            gap: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .brief-greeting {
+            font-family: 'Georgia', serif;
+            font-style: italic;
+            font-size: 20px;
+            color: #fff;
+        }
+        
+        .brief-greeting span {
+            color: var(--accent-pink);
         }
 
-        .briefing-box h3:first-child {
-            margin-top: 0;
+        .brief-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(102, 252, 241, 0.1);
+            border: 1px solid rgba(102, 252, 241, 0.3);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--primary-color);
+            width: fit-content;
+        }
+        
+        .brief-pill.danger {
+            background: rgba(255, 0, 85, 0.1);
+            border-color: rgba(255, 0, 85, 0.3);
+            color: var(--danger-color);
+        }
+
+        .brief-tasks {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .task-card {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 10px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .task-title {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .task-cat {
+            font-family: var(--font-mono);
+            font-size: 9px;
+            background: rgba(255,255,255,0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        
+        .brief-message {
+            font-size: 14px;
+            line-height: 1.6;
+            color: rgba(255,255,255,0.9);
+            border-left: 2px solid var(--accent-purple);
+            padding-left: 14px;
+            margin-top: 4px;
+            font-style: italic;
+        }
+        
+        .brief-nudge {
+            background: linear-gradient(90deg, rgba(155, 93, 229, 0.15), rgba(0,0,0,0));
+            border: 1px solid rgba(155, 93, 229, 0.3);
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 13px;
+            color: #d8b4fe;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        
+        .nudge-icon {
+            font-size: 18px;
+        }
+        
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 0.3; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        .dot-pulse {
+            width: 8px; height: 8px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            animation: pulse-dot 1s infinite ease-in-out;
         }
 
         .pattern-warning {
@@ -726,25 +808,25 @@
             <div class="card" style="border-left: 4px solid var(--primary-color);">
                 <div class="card-header-hud">
                     <span class="card-title-hud" style="color: var(--primary-color);">♟️ Chess.com Performance HUD</span>
-                    <span id="chess-username-display" style="font-size: 10px; font-family: var(--font-mono); color: rgba(255,255,255,0.4);">anish789098</span>
+                    <span id="chess-username-display" style="font-size: 10px; font-family: var(--font-mono); color: rgba(255,255,255,0.4);">Loading...</span>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                     <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
                         <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">Rapid Rating</span>
-                        <h4 id="chess-rapid-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">1485</h4>
+                        <h4 id="chess-rapid-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">---</h4>
                     </div>
                     <div style="background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.02); border-radius: 8px; padding: 10px; text-align: center;">
                         <span style="font-size: 9px; color: rgba(255,255,255,0.4); text-transform: uppercase;">Blitz Rating</span>
-                        <h4 id="chess-blitz-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">1395</h4>
+                        <h4 id="chess-blitz-rating" style="font-size: 22px; font-weight: 800; color: white; font-family: var(--font-display); margin-top: 3px;">---</h4>
                     </div>
                 </div>
                 <div>
                     <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-color); margin-bottom: 4px;">
                         <span>Win-Loss Progression</span>
-                        <span id="chess-win-ratio" style="font-weight: 700; color: white;">53.2% win rate</span>
+                        <span id="chess-win-ratio" style="font-weight: 700; color: white;">Loading...</span>
                     </div>
                     <div class="progress-bar-hud">
-                        <div class="progress-bar-fill" id="chess-win-bar" style="width: 53.2%; background: var(--primary-color);"></div>
+                        <div class="progress-bar-fill" id="chess-win-bar" style="width: 0%; background: var(--primary-color);"></div>
                     </div>
                 </div>
             </div>
@@ -753,15 +835,27 @@
             <div class="card" style="border-left: 4px solid var(--accent-pink);">
                 <div class="card-header-hud">
                     <span class="card-title-hud" style="color: var(--accent-pink);">🏃‍♂️ Strava Running Telemetry</span>
-                    <span id="run-avg-pace" style="font-size: 12px; font-weight: 800; color: white;">Pace: 5:10/km</span>
+                    <span id="run-avg-pace" style="font-size: 12px; font-weight: 800; color: white;">Pace: ---/km</span>
                 </div>
                 <div style="margin-bottom: 12px;">
                     <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-color); margin-bottom: 4px;">
                         <span>Weekly Running Volume</span>
-                        <span id="run-weekly-ratio" style="font-weight: 700; color: white;">20.4 / 30.0 KM</span>
+                        <span id="run-weekly-ratio" style="font-weight: 700; color: white;">--- / --- KM</span>
                     </div>
-                    <div class="progress-bar-hud" style="height: 8px;">
-                        <div class="progress-bar-fill" id="run-weekly-bar" style="width: 68%; background: linear-gradient(90deg, var(--accent-pink), #ff5599);"></div>
+                    <div class="progress-bar-hud" style="height: 8px; margin-bottom: 12px;">
+                        <div class="progress-bar-fill" id="run-weekly-bar" style="width: 0%; background: linear-gradient(90deg, var(--accent-pink), #ff5599);"></div>
+                    </div>
+                    
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-color); margin-bottom: 4px;">
+                        <span>Weekly Time Goal</span>
+                        <span id="run-time-ratio" style="font-weight: 700; color: white;">--- / --- MINS</span>
+                    </div>
+                    <div class="progress-bar-hud" style="height: 8px; margin-bottom: 8px;">
+                        <div class="progress-bar-fill" id="run-time-bar" style="width: 0%; background: linear-gradient(90deg, var(--primary-color), var(--accent-purple));"></div>
+                    </div>
+                    
+                    <div style="font-size: 11px; color: var(--text-color); text-align: right;">
+                        Total Runs: <span id="run-total-runs" style="font-weight: 700; color: white;">0</span>
                     </div>
                 </div>
                 <div style="display: flex; justify-content: space-between; font-size: 10px; color: rgba(255,255,255,0.4); border-top: 1px solid rgba(255,255,255,0.03); padding-top: 10px;" id="pb-row">
@@ -793,21 +887,6 @@
                     <p style="color: rgba(255,255,255,0.4); font-family: var(--font-mono); font-size: 11px;">Polling Google Calendar, Strava & Notion database modifications...</p>
                 </div>
                 
-                <!-- Self-Sabotage warn metrics -->
-                <div style="margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 15px;">
-                    <span class="card-title-hud" style="color: #ffb703; display: block; margin-bottom: 10px;">⚠️ Behavioral Loop Auditor</span>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div id="pattern-scatter" style="background: rgba(255, 0, 85, 0.04); border: 1px solid rgba(255, 0, 85, 0.15); border-radius: 8px; padding: 8px 12px; font-size: 10.5px; font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; font-weight: 700; color: #ff3b70;">
-                            <span class="status-indicator" style="width: 8px; height: 8px; background: #ff0055; box-shadow: 0 0 10px #ff0055;"></span>
-                            Scatter Loop
-                        </div>
-                        <div id="pattern-spiral" style="background: rgba(102, 252, 241, 0.04); border: 1px solid rgba(102, 252, 241, 0.15); border-radius: 8px; padding: 8px 12px; font-size: 10.5px; font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; font-weight: 700; color: var(--primary-color);">
-                            <span class="status-indicator status-active" style="width: 8px; height: 8px;"></span>
-                            2 AM Spiral
-                        </div>
-                    </div>
-                </div>
-
                 <div class="chat-section" style="margin-top: 20px; text-align: center; border-top: 1px solid rgba(255,255,255,0.03); padding-top: 20px;">
                     <a href="/chat.html" class="btn btn-primary" style="display: inline-block; text-decoration: none; padding: 12px 24px; font-size: 14px; font-weight: 800; border-radius: 8px; width: 100%;">
                         Open Full Chat Terminal ➔
@@ -824,7 +903,7 @@
     <div class="toast-container" id="toast-bin"></div>
 
     <script>
-        const API_BASE = window.location.origin.includes("file://") ? "http://127.0.0.1:8000/api" : window.location.origin + "/api";
+        const API_BASE = "http://127.0.0.1:8000/api";
         let isRecording = false;
         let recognition = null;
         let finalTranscript = "";
@@ -895,6 +974,8 @@
                 coralStatus.innerHTML = `<span class="status-indicator status-simulated"></span>Coral: OFFLINE`;
                 agentStatus.innerHTML = `<span class="status-indicator status-simulated"></span>Bridge: OFFLINE`;
             }
+        } // ADDED MISSING CLOSING BRACE HERE
+        
         // Wake Word System using Web Speech API
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
@@ -904,7 +985,7 @@
             recognition.lang = 'en-US';
 
             recognition.onstart = () => {
-                addConsoleLog("WAKE_WORD", "Listening for 'OK Abra'...");
+                // Wake word listening started
             };
 
             recognition.onresult = (event) => {
@@ -925,17 +1006,23 @@
                 }
             };
 
+            let wakeWordRetries = 0;
             recognition.onerror = (event) => {
-                if (event.error !== 'no-speech') {
-                    addConsoleLog("WAKE_WORD", "Error: " + event.error, true);
+                if (event.error === 'not-allowed' || event.error === 'network') {
+                    wakeWordRetries += 10; // Stop retrying aggressively on fatal errors
                 }
             };
 
             recognition.onend = () => {
-                // Auto-restart to keep always listening
-                try {
-                    recognition.start();
-                } catch(e) {}
+                // Auto-restart to keep always listening, with a timeout to prevent infinite permission loops
+                wakeWordRetries++;
+                if (wakeWordRetries < 5) {
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch(e) {}
+                    }, 2000);
+                }
             };
 
             try {
@@ -944,7 +1031,7 @@
                 console.error("Wake word init failed:", e);
             }
         } else {
-            addConsoleLog("WAKE_WORD", "Web Speech API not supported in this browser.", true);
+            console.log("Web Speech API not supported in this browser.");
         }
 
         // Offline Browser MediaRecorder configuration
@@ -1029,16 +1116,52 @@
             }
         });
 
+        // Render JSON Briefing into Beautiful HTML
+        function renderBriefing(data) {
+            let html = `<div class="briefing-box">`;
+            html += `<div class="brief-greeting">${data.greeting}, <span>${data.name}</span>.</div>`;
+            
+            let pillClass = data.task_message.includes('overdue') ? 'danger' : '';
+            html += `<div class="brief-pill ${pillClass}"><div class="status-indicator status-active" style="width: 6px; height: 6px; box-shadow: none;"></div> ${data.task_message.toUpperCase()}</div>`;
+            
+            if (!data.no_tasks && data.tasks && data.tasks.length > 0) {
+                html += `<div class="brief-tasks">`;
+                data.tasks.forEach(t => {
+                    let style = t.overdue ? "border-left: 2px solid var(--danger-color);" : "border-left: 2px solid var(--primary-color);";
+                    let icon = t.category.toLowerCase().includes("health") || t.category.toLowerCase().includes("run") ? "🏃" : 
+                               t.category.toLowerCase().includes("code") || t.category.toLowerCase().includes("work") ? "💻" : "📌";
+                    html += `<div class="task-card" style="${style}">
+                        <div class="task-title">${t.name}</div>
+                        <div class="task-cat">${icon} ${t.category.toUpperCase()}</div>
+                    </div>`;
+                });
+                html += `</div>`;
+            }
+            
+            html += `<div class="brief-message">"${data.message}"</div>`;
+            
+            html += `<div class="brief-nudge">
+                <div class="nudge-icon">✨</div>
+                <div>${data.nudge}</div>
+            </div>`;
+            
+            html += `</div>`;
+            return html;
+        }
+
         // Fetch dynamic brief
         async function fetchBriefing() {
-            briefingBox.innerHTML = "<p style='color: rgba(255,255,255,0.4); font-family: var(--font-mono); font-size: 11px;'>Re-compiling schedule splits via Coral SQL...</p>";
+            briefingBox.innerHTML = `
+                <div style="display: flex; gap: 8px; align-items: center; justify-content: center; height: 100px; color: var(--primary-color);">
+                    <div class="dot-pulse"></div><div class="dot-pulse" style="animation-delay: 0.2s"></div><div class="dot-pulse" style="animation-delay: 0.4s"></div>
+                </div>`;
             addConsoleLog("CORAL_SQL", "Executing daily morning briefing join query.");
             
             try {
                 const res = await fetch(`${API_BASE}/briefing`);
                 if (res.ok) {
                     const data = await res.json();
-                    briefingBox.innerHTML = formatMarkdownToHTML(data.markdown);
+                    briefingBox.innerHTML = renderBriefing(data);
                     addConsoleLog("LLM", "Morning briefing compiled successfully.");
                 } else {
                     throw new Error();
@@ -1077,10 +1200,20 @@
 
                     // Update Running
                     document.getElementById("run-avg-pace").textContent = `Pace: ${data.running.recent_run_pace}`;
-                    document.getElementById("run-weekly-ratio").textContent = `${data.running.weekly_km} / ${data.running.weekly_target} KM`;
                     
-                    const percent = Math.min((data.running.weekly_km / data.running.weekly_target) * 100, 100);
+                    const weeklyTargetDisplay = data.running.weekly_target > 0 ? data.running.weekly_target : "N/A";
+                    document.getElementById("run-weekly-ratio").textContent = `${data.running.weekly_km} / ${weeklyTargetDisplay} KM`;
+                    
+                    const percent = data.running.weekly_target > 0 ? Math.min((data.running.weekly_km / data.running.weekly_target) * 100, 100) : 0;
                     document.getElementById("run-weekly-bar").style.width = `${percent}%`;
+                    
+                    const timeTargetDisplay = data.running.weekly_time_target > 0 ? data.running.weekly_time_target : "N/A";
+                    document.getElementById("run-time-ratio").textContent = `${data.running.weekly_time_mins} / ${timeTargetDisplay} MINS`;
+                    
+                    const timePercent = data.running.weekly_time_target > 0 ? Math.min((data.running.weekly_time_mins / data.running.weekly_time_target) * 100, 100) : 0;
+                    document.getElementById("run-time-bar").style.width = `${timePercent}%`;
+                    
+                    document.getElementById("run-total-runs").textContent = data.running.weekly_runs;
                     const pbRow = document.getElementById("pb-row");
                     pbRow.innerHTML = "";
                     if (data.running.five_k_pb !== "N/A") {
@@ -1119,38 +1252,27 @@
                         goalsList.appendChild(goalCard);
                     });
 
-                    // Update patterns
-                    const scatterIndicator = document.getElementById("pattern-scatter");
-                    const spiralIndicator = document.getElementById("pattern-spiral");
-
-                    if (data.patterns.scatter_loop === "active") {
-                        scatterIndicator.style.background = "rgba(255, 0, 85, 0.07)";
-                        scatterIndicator.style.borderColor = "#ff0055";
-                        scatterIndicator.style.color = "#ff3b70";
-                        scatterIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: #ff0055; box-shadow: 0 0 10px #ff0055;"></span> Scatter Loop`;
-                    } else {
-                        scatterIndicator.style.background = "rgba(102, 252, 241, 0.04)";
-                        scatterIndicator.style.borderColor = "rgba(102, 252, 241, 0.12)";
-                        scatterIndicator.style.color = "var(--primary-color)";
-                        scatterIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color);"></span> Scatter Loop`;
-                    }
-                    
-                    if (data.patterns.two_am_spiral === "active") {
-                        spiralIndicator.style.background = "rgba(255, 0, 85, 0.07)";
-                        spiralIndicator.style.borderColor = "#ff0055";
-                        spiralIndicator.style.color = "#ff3b70";
-                        spiralIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: #ff0055; box-shadow: 0 0 10px #ff0055;"></span> 2 AM Spiral`;
-                    } else {
-                        spiralIndicator.style.background = "rgba(102, 252, 241, 0.04)";
-                        spiralIndicator.style.borderColor = "rgba(102, 252, 241, 0.12)";
-                        spiralIndicator.style.color = "var(--primary-color)";
-                        spiralIndicator.innerHTML = `<span style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color);"></span> 2 AM Spiral`;
-                    }
-                    
                     addConsoleLog("CORAL_SQL", "SQL telemetry database sync complete.");
+                } else {
+                    throw new Error("API returned " + res.status);
                 }
             } catch (err) {
-                addConsoleLog("CORAL_SQL", "Failed to reach telemetry dashboard APIs. Using sandbox simulation.", true);
+                addConsoleLog("CORAL_SQL", "Failed to reach telemetry dashboard APIs. " + err.message, true);
+                
+                // Explicitly show error states on the UI
+                document.getElementById("chess-rapid-rating").textContent = "ERR";
+                document.getElementById("chess-blitz-rating").textContent = "ERR";
+                document.getElementById("chess-win-ratio").textContent = "DATA UNAVAILABLE";
+                document.getElementById("chess-win-bar").style.width = "0%";
+                
+                document.getElementById("run-avg-pace").textContent = "Pace: OFFLINE";
+                document.getElementById("run-weekly-ratio").textContent = "API DISCONNECTED";
+                document.getElementById("run-weekly-bar").style.width = "0%";
+                document.getElementById("pb-row").innerHTML = `<span style="color: #ff0055;">Strava API Offline / Auth Failed</span>`;
+                
+                const goalsList = document.getElementById("goals-list-box");
+                goalsList.innerHTML = `<div style="color: #ff0055; font-size: 11px; font-weight: bold; text-align: center; padding: 10px;">Notion API Offline</div>`;
+                
             }
         }
 

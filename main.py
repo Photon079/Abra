@@ -1,6 +1,9 @@
 from dotenv import load_dotenv
 load_dotenv()  # Must run BEFORE any module imports that read os.getenv()
 
+from coral_startup import bootstrap
+bootstrap()
+
 import logging
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +19,7 @@ from briefing import generate_morning_briefing
 from goals import decompose_goal
 from qa import answer_memory_query
 from patterns import scan_self_sabotage_patterns
+from notion_writer import notion_writer
 
 # Configure logging
 logging.basicConfig(
@@ -105,19 +109,108 @@ async def chat_console(request: PromptRequest):
                 try:
                     # Fetch stats
                     stats = coral_query_service.run_query(
-                        "SELECT chess_rapid__last__rating, chess_blitz__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats"
+                        'SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats'
                     )
                     # Fetch recent games with PGN
                     games = coral_query_service.run_query(
                         "SELECT pgn, time_class, white__username, white__rating, white__result, black__username, black__rating, black__result, accuracies__white, accuracies__black FROM chesscom.games ORDER BY end_time DESC LIMIT 2"
                     )
-                    live_context = f"\n\n--- LIVE CHESS.COM DATA (fetched via Coral SQL) ---\nStats: {json.dumps(stats, indent=2)}\n\nRecent Games (newest first):\n{json.dumps(games, indent=2)}\n--- END LIVE DATA ---\n"
+                    live_context += f"\n\n--- LIVE CHESS.COM DATA (fetched via Coral SQL) ---\nStats: {json.dumps(stats, indent=2)}\n\nRecent Games (newest first):\n{json.dumps(games, indent=2)}\n--- END LIVE DATA ---\n"
                     logger.info(f"Injected {len(games)} chess games as context for chat.")
                 except Exception as e:
                     logger.warning(f"Failed to fetch chess context: {e}")
+                    
+            # Auto-inject strava data if running-related question
+            if any(kw in msg_lower for kw in ["run", "running", "strava", "pace", "distance", "marathon", "km", "cardio", "jog"]):
+                try:
+                    runs = coral_query_service.run_query(
+                        "SELECT name, distance, elapsed_time, average_speed, start_date, type FROM strava.activities ORDER BY start_date DESC LIMIT 10"
+                    )
+                    live_context += f"\n\n--- LIVE STRAVA DATA (fetched via Coral SQL) ---\nRecent Runs (newest first):\n{json.dumps(runs, indent=2)}\n--- END LIVE DATA ---\n"
+                    logger.info(f"Injected {len(runs)} strava runs as context for chat.")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch strava context: {e}")
+            
+            # Auto-inject Notion data if notion-related question
+            if any(kw in msg_lower for kw in ["notion", "task", "diary", "schedule", "goal", "plan", "todo"]):
+                try:
+                    import httpx
+                    if notion_writer.client and notion_writer.tasks_db_id and notion_writer.diary_db_id:
+                        headers = {
+                            "Authorization": f"Bearer {notion_writer.client.auth}",
+                            "Notion-Version": "2022-06-28",
+                            "Content-Type": "application/json"
+                        }
+                        
+                        # Safe property extraction helpers
+                        def extract_task(p):
+                            try:
+                                return {
+                                    "title": p.get("properties", {}).get("Task Name", {}).get("title", [{"plain_text": "Untitled"}])[0].get("plain_text", "Untitled"),
+                                    "status": p.get("properties", {}).get("Status", {}).get("status", {}).get("name", "Todo"),
+                                    "category": p.get("properties", {}).get("Category", {}).get("select", {}).get("name", "General")
+                                }
+                            except:
+                                return {"title": "Error parsing task"}
+                                
+                        def extract_diary(p):
+                            try:
+                                r_text = p.get("properties", {}).get("Summary", {}).get("rich_text", [])
+                                summary = r_text[0].get("plain_text", "") if r_text else ""
+                                return {
+                                    "date": p.get("properties", {}).get("Date", {}).get("date", {}).get("start", ""),
+                                    "mood": p.get("properties", {}).get("Mood Signal", {}).get("select", {}).get("name", ""),
+                                    "summary": summary
+                                }
+                            except:
+                                return {"summary": "Error parsing diary entry"}
+
+                        # Fetch tasks
+                        if notion_writer.is_database_id(notion_writer.tasks_db_id):
+                            tasks_res = httpx.post(f"https://api.notion.com/v1/databases/{notion_writer.tasks_db_id}/query", headers=headers, json={"page_size": 10})
+                            tasks = [extract_task(p) for p in tasks_res.json().get("results", [])]
+                        else:
+                            tasks = []
+                        
+                        # Fetch diary
+                        diary = []
+                        if notion_writer.is_database_id(notion_writer.diary_db_id):
+                            try:
+                                diary_res = httpx.post(f"https://api.notion.com/v1/databases/{notion_writer.diary_db_id}/query", headers=headers, json={"page_size": 5})
+                                if diary_res.status_code == 200:
+                                    diary = [extract_diary(p) for p in diary_res.json().get("results", [])]
+                            except:
+                                pass
+                        
+                        live_context += f"\n\n--- LIVE NOTION DATA ---\nRecent Tasks:\n{json.dumps(tasks, indent=2)}\n\nRecent Diary Entries:\n{json.dumps(diary, indent=2)}\n--- END LIVE DATA ---\n"
+                        logger.info(f"Injected notion tasks and diary as context for chat.")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch notion context: {e}")
             
             enriched_message = request.message + live_context
             response = llm_service.call(system_prompt, enriched_message)
+            
+            # --- INTERCEPT LLM COMMANDS ---
+            import re
+            
+            task_match = re.search(r'\[UPDATE_TASK:\s*(.+?)\]', response)
+            if task_match:
+                task_name = task_match.group(1).strip()
+                success = notion_writer.update_task_status(task_name, "Done")
+                if success:
+                    response = response.replace(task_match.group(0), "") + f"\n\n*(System Note: Task '{task_name}' successfully marked as Done in Notion)*"
+                else:
+                    response = response.replace(task_match.group(0), "") + f"\n\n*(System Note: Failed to update task '{task_name}'. It might not exist.)*"
+                    
+            brain_match = re.search(r'\[UPDATE_BRAIN:\s*(.+?)\](.*?)\[END_UPDATE\]', response, re.DOTALL)
+            if brain_match:
+                file_key = brain_match.group(1).strip()
+                content = brain_match.group(2).strip()
+                success = notion_writer.update_brain_file(file_key, content)
+                if success:
+                    response = response.replace(brain_match.group(0), "") + f"\n\n*(System Note: Brain file '{file_key}' successfully overwritten)*"
+            # ------------------------------
+            
             return {"intent": "general", "markdown": response}
             
     except Exception as e:
@@ -187,21 +280,21 @@ async def get_dashboard_telemetry():
     
     try:
         # 1. Fetch Chess Stats via Coral SQL
-        chess_sql = "SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats"
+        chess_sql = 'SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss, chess_rapid__record__draw FROM chesscom.stats'
         chess_data = coral_query_service.run_query(chess_sql)
-        chess_res = chess_data[0] if chess_data else {
-            "chess_rapid__last__rating": 1485, "chess_blitz__last__rating": 1395, "chess_rapid__record__win": 182, "chess_rapid__record__loss": 161, "chess_rapid__record__draw": 24
-        }
+        chess_res = chess_data[0] if chess_data else {}
 
         # 2. Fetch Strava running telemetry dynamically
-        strava_all_sql = "SELECT (distance / 1000) AS distance_km, elapsed_time, average_speed, start_date, type FROM strava.activities"
+        strava_all_sql = "SELECT (distance / 1000) AS distance_km, elapsed_time, average_speed, start_date, type FROM strava.activities ORDER BY start_date DESC"
         strava_all_data = coral_query_service.run_query(strava_all_sql)
         
         five_k_pb_secs = None
         ten_k_pb_secs = None
         half_marathon_pb_secs = None
         weekly_distance = 0.0
-        recent_pace = "5:10/km"
+        weekly_time_mins = 0.0
+        weekly_runs = 0
+        recent_pace = "N/A"
         
         if strava_all_data:
             from datetime import datetime, timezone, timedelta
@@ -224,6 +317,8 @@ async def get_dashboard_telemetry():
                         run_date = datetime.strptime(start_date_str[:10], "%Y-%m-%d")
                         if run_date >= seven_days_ago:
                             weekly_distance += dist_km
+                            weekly_time_mins += elapsed / 60.0
+                            weekly_runs += 1
                     except Exception:
                         pass
                 
@@ -249,7 +344,7 @@ async def get_dashboard_telemetry():
                     pace_sec = 1000.0 / speed
                     recent_pace = f"{int(pace_sec // 60)}:{int(pace_sec % 60):02d}/km"
         else:
-            weekly_distance = 20.4
+            pass
             
         def format_pb(secs, default="N/A"):
             if not secs or secs <= 0:
@@ -271,11 +366,32 @@ async def get_dashboard_telemetry():
         if notion_writer.client and notion_writer.tasks_db_id:
             try:
                 if notion_writer.is_database_id(notion_writer.tasks_db_id):
-                    res = notion_writer.client.databases.query(database_id=notion_writer.tasks_db_id)
+                    import httpx
+                    import os
+                    res_raw = httpx.post(
+                        f"https://api.notion.com/v1/databases/{notion_writer.tasks_db_id}/query",
+                        headers={"Authorization": f"Bearer {os.getenv('NOTION_TOKEN')}", "Notion-Version": "2022-06-28"},
+                        json={}
+                    )
+                    res_raw.raise_for_status()
+                    res = res_raw.json()
                     pages = res.get("results", [])
+                    
+                    from datetime import datetime, timezone, timedelta
+                    today_dt = datetime.now(timezone.utc)
+                    seven_days_ago = today_dt - timedelta(days=7)
                     
                     categories = {}
                     for page in pages:
+                        created_time_str = page.get("created_time")
+                        if created_time_str:
+                            try:
+                                created_time = datetime.strptime(created_time_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+                                if created_time < seven_days_ago:
+                                    continue
+                            except Exception:
+                                pass
+                                
                         props = page.get("properties", {})
                         
                         # Category select field
@@ -306,14 +422,11 @@ async def get_dashboard_telemetry():
             except Exception as e:
                 logger.warning(f"Failed to query Notion goals: {e}")
                 
-        goals_res = [
-            { "title": "Maintain 30K/week running volume", "progress": int(weekly_distance), "total": 30, "pacing": f"{round(max(0, 30.0 - weekly_distance), 1)} KM remaining" }
-        ]
-        goals_res.extend(notion_goals)
+        goals_res = notion_goals
 
         # 4. Pattern audit indicators parsed dynamically from recent diary entries
         diary_content = ""
-        local_diary = "/home/anish/Documents/Anish/Daily/Diary"
+        local_diary = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_data", "Diary")
         if os.path.exists(local_diary):
             try:
                 with open(local_diary, "r", encoding="utf-8") as f:
@@ -347,18 +460,22 @@ async def get_dashboard_telemetry():
             "momentum_day": momentum_day
         }
 
+        import os
         return {
             "chess": {
-                "username": "anish789098",
-                "rapid": chess_res.get("chess_rapid__last__rating") or 1154,
-                "blitz": chess_res.get("chess_blitz__last__rating") or 1332,
-                "wins": chess_res.get("chess_rapid__record__win") or 82,
-                "losses": chess_res.get("chess_rapid__record__loss") or 55,
-                "draws": chess_res.get("chess_rapid__record__draw") or 1
+                "username": os.getenv("CHESSCOM_USERNAME", "Unknown"),
+                "rapid": chess_res.get("chess_rapid__last__rating", 0),
+                "blitz": chess_res.get("chess_blitz__last__rating", 0),
+                "wins": chess_res.get("chess_rapid__record__win") or 0,
+                "losses": chess_res.get("chess_rapid__record__loss") or 0,
+                "draws": chess_res.get("chess_rapid__record__draw") or 0
             },
             "running": {
                 "weekly_km": round(weekly_distance, 1),
-                "weekly_target": 30.0,
+                "weekly_target": float(os.getenv("STRAVA_WEEKLY_KM_TARGET", 30.0)),
+                "weekly_time_mins": round(weekly_time_mins, 1),
+                "weekly_time_target": float(os.getenv("STRAVA_WEEKLY_MINS_TARGET", 180.0)),
+                "weekly_runs": weekly_runs,
                 "five_k_pb": five_k_pb_str,
                 "ten_k_pb": ten_k_pb_str,
                 "half_marathon_pb": half_marathon_pb_str,
@@ -369,15 +486,7 @@ async def get_dashboard_telemetry():
         }
     except Exception as e:
         logger.error(f"Error compiling dashboard telemetry: {e}")
-        return {
-            "chess": { "username": "anish789098", "rapid": 1485, "blitz": 1395, "wins": 182, "losses": 161, "draws": 24 },
-            "running": { "weekly_km": 20.4, "weekly_target": 30.0, "five_k_pb": "24:20", "ten_k_pb": "54:30", "recent_run_pace": "5:10/km" },
-            "goals": [
-                { "title": "Complete NeetCode 150", "progress": 42, "total": 150, "pacing": "2.4 tasks/day" },
-                { "title": "Maintain 30K/week running volume", "progress": 20, "total": 30, "pacing": "1.8 runs remaining" }
-            ],
-            "patterns": { "scatter_loop": "active", "two_am_spiral": "inactive", "momentum_day": "active" }
-        }
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/voice-diary/audio")
 async def voice_diary_audio(file: UploadFile = File(...)):

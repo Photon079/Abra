@@ -164,9 +164,12 @@ export default function App() {
               {isRecording ? 'Recording voice dump... speak naturally, bruh.' : 'Click mic to log your daily dump.'}
             </p>
 
-            <div className="w-full bg-black/25 border border-white/5 rounded-2xl p-5 min-h-[100px] max-h-[150px] overflow-y-auto font-mono text-xs text-gray-300 leading-relaxed">
-              {transcription || "Captured transcript will manifest here in real-time..."}
-            </div>
+            <textarea 
+              className="w-full bg-black/25 border border-white/5 rounded-2xl p-5 min-h-[100px] max-h-[150px] overflow-y-auto font-mono text-xs text-gray-300 leading-relaxed resize-none focus:outline-none focus:border-cyan-400/50"
+              placeholder="Captured transcript will manifest here in real-time... (or type your dump manually)"
+              value={transcription}
+              onChange={(e) => setTranscription(e.target.value)}
+            />
 
             <div className="flex gap-4 w-full">
               <button onClick={handleClear} className="flex-1 py-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-sm font-semibold uppercase tracking-wider">Clear</button>
