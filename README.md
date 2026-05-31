@@ -1,25 +1,31 @@
 # Abra — Personal Life OS
 
-Abra is a voice-first AI life dashboard designed to structure unstructured inputs, interact with Notion APIs, and monitor cross-platform telemetry (Chess.com, Strava) via SQL integrations. 
+> *Speak a your mind out, Get a structured diary entry in Notion. Ask what you should focus on today. Get an answer from abra that actually knows you.*
 
-Built on [Coral](https://withcoral.com) for cross-source SQL queries over personal data, Abra acts as a unified command center.
+I have multiple hobbies and from a very long time tried to connect all my stuff in a single platform.I tried using multiple llms as personal assistants but none of them were good for context aware chats. 
+
+I built Abra to fix this. It's a voice-first personal life OS that listens to whatever you speak, writes structured diary entries to Notion, and answers questions about your own life using live data from every source at once — queried as SQL via [Coral](https://withcoral.com).
+
+This is v1. Chess.com and Strava are connected now. The goal is to eventually pipe in everything — GitHub activity, calendar events, learning progress, health data — so Abra has a complete picture of your life, not just fragments of it.
 
 ---
 
-## Core Features
+## What It Does
 
 | Feature | Description |
-|---------|-------------|
-| **Voice Diary** | Browser-based audio capture and transcription for saving thoughts directly to Notion. |
-| **Live Stats Dashboard** | Real-time synchronization of Chess.com ratings, Strava activity, and Notion tasks. |
-| **Morning Briefing** | AI-generated daily summaries based on your goals, past entries, and current activities. |
-| **Context-Aware Chat** | Conversational interface with access to live data for asking about your performance (e.g., Chess games or running volume). |
-| **Notion Sync** | Bi-directional synchronization for tasks, statuses, and diary logs. |
-| **Strava Automation** | Token management, weekly distance tracking, and personal best detection. |
+|---|---|
+| **Voice Diary** | Tap, speak, done. Your words get transcribed, structured, and saved to Notion with date, mood signal, and tomorrow's focus — automatically. |
+| **Day Briefing** | Every morning Abra reads your goals, recent diary entries, and live stats, then gives you one human paragraph about what matters today. |
+| **Context-Aware Chat** | Ask anything. *"How many km did I run this week?"* *"Am I improving at chess?"* *"What should I work on today?"* — it has the data to actually answer. |
+| **Live Telemetry Dashboard** | Real-time Chess.com ratings, Strava activity volume, and Notion task progress — all in one view. |
+| **Notion Sync** | Bi-directional. Diary logs, task updates, and goal tracking all write back to your existing Notion workspace. |
+| **Strava Automation** | OAuth token management, weekly distance tracking, and personal best detection — fully hands-off. |
+
+---
 
 ## Architecture
 
-```text
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                       Abra Dashboard                        │
 │  ┌──────────┐  ┌─────────────────┐  ┌────────────────────┐  │
@@ -32,7 +38,7 @@ Built on [Coral](https://withcoral.com) for cross-source SQL queries over person
 ┌─────────────────────────────────────────────────────────────┐
 │                FastAPI Backend (main.py)                    │
 │  Intent Router → Diary / Goals / QA / Briefing / Chat       │
-│  AI Models: Gemini → Groq (auto-fallback)                   │
+│                AI Models: Gemini → Groq  
 └───────┬────────────────┬──────────────────────┬─────────────┘
         │                │                      │
    ┌────▼────┐    ┌──────▼──────┐      ┌───────▼───────┐
@@ -48,14 +54,19 @@ Built on [Coral](https://withcoral.com) for cross-source SQL queries over person
          └───────┘             └───────┘
 ```
 
+The key insight: Coral turns Chess.com and Strava into SQL tables Abra can query directly — no ETL, no stitched API calls. Notion is queried separately via its own API and merged at the application layer. Together they give the AI a complete picture of your life across every source. More sources coming.
+
+---
+
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.10+
 - Node.js v18+ (for frontend)
 - [Coral CLI](https://withcoral.com/docs/getting-started/installation)
-- A Notion integration ([Configuration Guide](https://www.notion.so/my-integrations))
-- At least one LLM API key (Gemini recommended)
+- A Notion integration ([guide](https://www.notion.so/my-integrations))
+- At least one LLM API key (Gemini recommended, others auto-fallback)
 
 ### Setup
 
@@ -64,113 +75,121 @@ Built on [Coral](https://withcoral.com) for cross-source SQL queries over person
 git clone https://github.com/Photon079/Abra.git
 cd Abra
 
-# 1. Install Python backend dependencies
+# Install Python dependencies
 pip install -r requirements.txt
 
-# 2. Install React frontend dependencies
-cd frontend
-npm install
-cd ..
+# Install React frontend dependencies
+cd frontend && npm install && cd ..
 
-# 3. Configure environment variables
+# Configure environment variables
 cp .env.example .env
-# Edit .env with appropriate API keys and secrets
+# Edit .env with your API keys
 
-# 4. Register Coral data sources
+# Register Coral data sources (auto-registers on every startup after this)
 coral source add --file sources/chesscom.yml
 coral source add --file sources/strava.yml
 
-# 5. Authorize Strava OAuth
+# One-time Strava OAuth (opens browser, writes token to .env automatically)
 python3 coral_startup.py --strava-auth
 
-# 6. Start the FastAPI backend
+# Start everything
 python3 main.py
 ```
 
-Access the application at **http://127.0.0.1:8000**.
+Open **http://127.0.0.1:8000** — the dashboard loads with your live data.
+
+> After first setup, `coral_startup.py` auto-registers all sources and refreshes Strava tokens on every `python3 main.py`. No manual steps.
+
+---
 
 ## Coral Source Specifications
 
-Abra utilizes community source specifications for Coral SQL integration:
+Two community source specs ship with Abra — also submitted as standalone bounty contributions to the Coral registry:
 
-| Source | Authentication | Tables | Description |
-|--------|----------------|--------|-------------|
-| **Chess.com** | Public API (None) | `stats`, `profile`, `games`, `clubs` | Player ratings, match history with PGN, and accuracy metrics. |
-| **Strava** | OAuth 2.0 | `activities`, `athlete`, `athlete_stats` | Activity tracking, weekly volume, and performance records. |
+| Source | Auth | Tables | Notes |
+|---|---|---|---|
+| **Chess.com** | None (public API) | `stats`, `profile`, `games`, `clubs` | Ratings, match history with PGN and accuracy scores. Works for any username via input variable. |
+| **Strava** | OAuth 2.0 + PKCE | `activities`, `athlete`, `athlete_stats` | Full activity history, weekly volume, personal records. Token refresh handled automatically. |
 
-### Validation
+### Lint before you use
+
 ```bash
 coral source lint sources/chesscom.yml
 coral source lint sources/strava.yml
 ```
 
-### Example SQL Queries
+### Example queries Abra runs under the hood
+
 ```sql
--- Chess.com ratings across formats
-SELECT chess_blitz__last__rating, chess_rapid__last__rating
+-- Morning briefing: what's my chess trend?
+SELECT chess_blitz__last__rating, chess_rapid__last__rating,
+       chess_blitz__record__win, chess_blitz__record__loss
 FROM chesscom.stats;
 
--- Recent match accuracy
+-- Recent game accuracy
 SELECT white__username, white__result, accuracies__white, time_class
 FROM chesscom.games LIMIT 5;
 
--- Weekly running volume
+-- This week's running volume
 SELECT name, distance, moving_time, start_date_local
-FROM strava.activities LIMIT 10;
+FROM strava.activities
+WHERE start_date_local >= '2026-05-25'
+ORDER BY start_date_local DESC;
 ```
-
-## Context Files
-
-Abra's LLM context relies on markdown files located in `brain_files/`:
-
-| File | Description |
-|------|-------------|
-| `master_profile.md` | Your core identity, background, and what matters most to you. |
-| `career_plan.md` | Your active milestones, goals, and dreams. |
-| `patterns_for_ai_interaction.md` | Habits to watch out for and helpful nudges to keep you on track. |
-
-## Technology Stack
-
-- **Backend**: Python, FastAPI
-- **Frontend**: React 18, Tailwind CSS, Lucide React
-- **AI Models**: Gemini, Groq
-- **Transcription**: Groq Whisper API, Web Speech API
-- **Data Engine**: Coral SQL Engine
-- **Memory & Tasks**: Notion API
-
-## Project Structure
-
-```text
-Abra/
-├── main.py              # FastAPI server and API endpoints
-├── coral_startup.py     # Source registration and Strava OAuth management
-├── llm.py               # AI Models fallback logic
-├── coral_query.py       # Coral SQL query execution interface
-├── notion_writer.py     # Notion API integration (diary, tasks, context)
-├── memory_loader.py     # Context aggregation from local storage or Notion
-├── briefing.py          # Briefing generation module
-├── diary.py             # Audio-to-structured diary processor
-├── goals.py             # Goal decomposition system
-├── qa.py                # Context-aware query handler
-├── intent_router.py     # NLP-based message routing
-├── patterns.py          # Behavioral pattern analysis
-├── sources/
-│   ├── chesscom.yml     # Chess.com Coral specification
-│   └── strava.yml       # Strava Coral specification
-├── brain_files/         # System context and memory
-├── frontend/
-│   ├── src/             # React application source code
-│   ├── public/          # Static web assets
-│   └── package.json     # Node.js dependencies
-├── .env.example         # Environment variable template
-└── requirements.txt     # Python dependencies
-```
-
-## Development and Deployment
-
-This repository was developed to showcase how Coral's SQL interface can manage and query disparate personal data sources (Notion, Chess.com, Strava) under a unified conversational interface.
 
 ---
 
-**Author:** [Anish](https://github.com/Photon079)  
-**Powered by:** [Coral](https://withcoral.com)
+## Personalizing Abra
+
+Abra's personality and context comes from three markdown files in `brain_files/`:
+
+| File | What goes here |
+|---|---|
+| `master_profile.md` | Who you are — background, values, what matters most to you |
+| `career_plan.md` | Active goals, milestones, timelines |
+| `patterns_for_ai_interaction.md` | Habits to watch for, nudges that help you stay on track |
+
+The LLM reads these on every request. The more honest you are in these files, the more useful Abra becomes.
+
+---
+
+## Tech Stack
+
+- **Backend:** Python, FastAPI
+- **Frontend:** React 18, Tailwind CSS, Lucide React
+- **AI:** Gemini → Groq → OpenRouter (cascading fallback)
+- **Voice Transcription:** Groq Whisper, Web Speech API
+- **Data Engine:** Coral SQL
+- **Memory & Tasks:** Notion API
+
+## Project Structure
+
+```
+Abra/
+├── main.py              # FastAPI server and API endpoints
+├── coral_startup.py     # Auto source registration + Strava OAuth
+├── llm.py               # Multi-provider AI fallback logic
+├── coral_query.py       # Coral SQL execution interface
+├── notion_writer.py     # Notion API (diary, tasks, context)
+├── memory_loader.py     # Context aggregation from Notion or local
+├── briefing.py          # Morning briefing generation
+├── diary.py             # Voice → structured diary processor
+├── goals.py             # Goal decomposition
+├── qa.py                # Context-aware Q&A handler
+├── intent_router.py     # NLP message routing
+├── patterns.py          # Behavioral pattern analysis
+├── sources/
+│   ├── chesscom.yml     # Chess.com Coral spec (bounty submission)
+│   └── strava.yml       # Strava Coral spec (bounty submission)
+├── brain_files/         # Your personal context files (not committed)
+├── frontend/
+│   ├── src/             # React components
+│   └── package.json
+├── .env.example
+└── requirements.txt
+```
+
+---
+
+**Built by [Anish](https://github.com/Photon079) for the Pirates of the Coral-bean hackathon.**  
+**Powered by [Coral](https://withcoral.com).**
