@@ -260,6 +260,7 @@
         }
 
         .typing-indicator.visible { display: flex; }
+        #typing-row.visible { display: flex; }
 
         .typing-dot {
             width: 7px;
@@ -398,15 +399,21 @@
 
     <div class="chat-container">
         <div class="chat-history" id="chat-history">
-            <div class="chat-bubble chat-agent">
-                Hey Anish. I'm ABRA — your personal life OS. I have access to your Chess.com games, Notion workspace, and your personal context files. Ask me anything — analyze your games, plan your day, break down a goal, or just chat. What's up?
+            <div style="display: flex; gap: 12px; align-items: flex-end; align-self: flex-start;">
+                <img src="/favicon.ico" alt="Abra" style="width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 10px var(--primary-glow); margin-bottom: 4px; flex-shrink: 0;">
+                <div class="chat-bubble chat-agent" style="align-self: auto;">
+                    Hey Anish. I'm Abra. I have access to your Chess.com games, Notion workspace, and your personal context files. Ask me anything — analyze your games, plan your day, break down a goal, or just chat. What's up?
+                </div>
             </div>
         </div>
 
-        <div class="typing-indicator" id="typing-indicator">
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
+        <div id="typing-row" style="display: none; gap: 12px; align-items: flex-end; align-self: flex-start; padding-left: 30px;">
+            <img src="/favicon.ico" alt="Abra" style="width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 10px var(--primary-glow); margin-bottom: 4px; flex-shrink: 0;">
+            <div class="typing-indicator" style="display: flex; align-self: auto;">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
         </div>
 
         <div class="input-area">
@@ -427,7 +434,7 @@
         const chatHistory = document.getElementById("chat-history");
         const chatInput = document.getElementById("chat-input");
         const sendBtn = document.getElementById("send-btn");
-        const typingIndicator = document.getElementById("typing-indicator");
+        const typingIndicator = document.getElementById("typing-row");
         const llmStatus = document.getElementById("llm-status");
 
         // Auto-resize textarea
@@ -455,11 +462,33 @@
         }
 
         function addBubble(content, sender) {
+            const row = document.createElement("div");
+            row.style.display = "flex";
+            row.style.gap = "12px";
+            row.style.alignItems = "flex-end";
+            row.style.alignSelf = sender === "user" ? "flex-end" : "flex-start";
+
+            if (sender === "agent") {
+                const img = document.createElement("img");
+                img.src = "/favicon.ico";
+                img.style.width = "24px";
+                img.style.height = "24px";
+                img.style.borderRadius = "50%";
+                img.style.boxShadow = "0 0 10px var(--primary-glow)";
+                img.style.marginBottom = "4px";
+                img.style.flexShrink = "0";
+                img.alt = "Abra";
+                row.appendChild(img);
+            }
+
             const bubble = document.createElement("div");
             bubble.classList.add("chat-bubble");
             bubble.classList.add(sender === "user" ? "chat-user" : "chat-agent");
+            bubble.style.alignSelf = "auto";
             bubble.innerHTML = sender === "user" ? escapeHtml(content) : formatMarkdown(content);
-            chatHistory.appendChild(bubble);
+            row.appendChild(bubble);
+
+            chatHistory.appendChild(row);
             chatHistory.scrollTop = chatHistory.scrollHeight;
         }
 

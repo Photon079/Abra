@@ -21,7 +21,7 @@ Built on [Coral](https://withcoral.com) for cross-source SQL queries over person
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                    Abra Life OS Dashboard                   │
+│                       Abra Dashboard                        │
 │  ┌──────────┐  ┌─────────────────┐  ┌────────────────────┐  │
 │  │  Voice   │  │ Live Telemetry  │  │  Morning Briefing  │  │
 │  │  Portal  │  │ Dashboard       │  │  + Chat Terminal   │  │
@@ -32,7 +32,7 @@ Built on [Coral](https://withcoral.com) for cross-source SQL queries over person
 ┌─────────────────────────────────────────────────────────────┐
 │                FastAPI Backend (main.py)                    │
 │  Intent Router → Diary / Goals / QA / Briefing / Chat       │
-│  LLM Cascade: Gemini → Groq → Cerebras (auto-fallback)      │
+│  AI Models: Gemini → Groq (auto-fallback)                   │
 └───────┬────────────────┬──────────────────────┬─────────────┘
         │                │                      │
    ┌────▼────┐    ┌──────▼──────┐      ┌───────▼───────┐
@@ -40,12 +40,12 @@ Built on [Coral](https://withcoral.com) for cross-source SQL queries over person
    │   API   │    │   Engine    │      │ (Voice→Text)  │
    └─────────┘    └──────┬──────┘      └───────────────┘
                          │
-              ┌──────────┼──────────┐
-              │          │          │
-         ┌────▼──┐  ┌───▼────┐ ┌───▼────────┐
-         │Chess  │  │Strava  │ │Google      │
-         │.com   │  │API     │ │Calendar    │
-         └───────┘  └────────┘ └────────────┘
+              ┌──────────┴──────────┐
+              │                     │
+         ┌────▼──┐             ┌────▼──┐
+         │Chess  │             │Strava │
+         │.com   │             │API    │
+         └───────┘             └───────┘
 ```
 
 ## Quick Start
@@ -133,7 +133,7 @@ Abra's LLM context relies on markdown files located in `brain_files/`:
 
 - **Backend**: Python, FastAPI
 - **Frontend**: React 18, Tailwind CSS, Lucide React
-- **AI Models**: Gemini, Groq, Cerebras
+- **AI Models**: Gemini, Groq
 - **Transcription**: Groq Whisper API, Web Speech API
 - **Data Engine**: Coral SQL Engine
 - **Memory & Tasks**: Notion API
@@ -144,7 +144,7 @@ Abra's LLM context relies on markdown files located in `brain_files/`:
 Abra/
 ├── main.py              # FastAPI server and API endpoints
 ├── coral_startup.py     # Source registration and Strava OAuth management
-├── llm.py               # LLM provider fallback logic
+├── llm.py               # AI Models fallback logic
 ├── coral_query.py       # Coral SQL query execution interface
 ├── notion_writer.py     # Notion API integration (diary, tasks, context)
 ├── memory_loader.py     # Context aggregation from local storage or Notion
