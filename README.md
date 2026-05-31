@@ -168,15 +168,17 @@ ORDER BY start_date_local DESC;
 
 ## Personalizing Abra
 
-Abra's personality and context comes from three markdown files in `brain_files/`:
+Abra's personality and context are dynamically loaded from your Notion workspace on every request. Set `NOTION_BRAIN_PAGE_ID` in your `.env` to point to a main "Brain" page. 
 
-| File | What goes here |
+Abra automatically scans its sub-pages by title keywords:
+
+| Notion Sub-page Title Keyword | What goes here |
 |---|---|
-| `master_profile.md` | Who you are — background, values, what matters most to you |
-| `career_plan.md` | Active goals, milestones, timelines |
-| `patterns_for_ai_interaction.md` | Habits to watch for, nudges that help you stay on track |
+| `profile`, `who`, `story` | Who you are — background, values, what matters most to you |
+| `goal`, `career`, `plan` | Active goals, milestones, timelines |
+| `pattern`, `interaction` | Habits to watch for, nudges that help you stay on track |
 
-The LLM reads these on every request. The more honest you are in these files, the more useful Abra becomes.
+The LLM reads these sub-pages live on every single chat request. The more honest you are in Notion, the more useful Abra becomes.
 
 ---
 
