@@ -7,6 +7,7 @@ I have multiple hobbies and from a very long time tried to connect all my stuff 
 I built Abra to fix this. It's a voice-first personal life OS that listens to whatever you speak, writes structured diary entries to Notion, and answers questions about your own life using live data from every source at once — queried as SQL via [Coral](https://withcoral.com).
 
 This is v1. Chess.com and Strava are connected now. The goal is to eventually pipe in everything — GitHub activity, calendar events, learning progress, health data — so Abra has a complete picture of your life, not just fragments of it.
+Check out how to setup abra for yourself [here](https://medium.com/@anish79u/i-built-an-ai-that-actually-knows-me-heres-how-you-can-too-9067a56b9295) for more details
 
 ---
 
