@@ -1,8 +1,9 @@
 import json
 import logging
 from typing import Dict, Any
-from llm import llm_service
-from notion_writer import notion_writer
+from app.llm import llm_service
+from app.integrations.notion import notion_writer
+from app.memory.graph_memory import graph_memory
 
 logger = logging.getLogger("abra.goals")
 
@@ -75,6 +76,15 @@ Strictly use the following JSON schema:
 """
     for t in goal_data.get("tasks", []):
         md_output += f"\n* **{t['title']}** (Deadline: `{t['deadline']}` | `{t['category']}`) — *{t['target']}*"
+
+    # Persist the goal + its plan into the graph (node set: goals) so Abra can
+    # later reason about progress and conflicts across goals and time (F1).
+    task_titles = ", ".join(t.get("title", "") for t in goal_data.get("tasks", []))
+    graph_memory.ingest_goal(
+        f"Goal decomposed from '{user_input}'. Plan: {goal_data.get('explanation', '')} "
+        f"Tasks: {task_titles}",
+        background=True,
+    )
 
     return {
         "intent": "goal_decomposition",

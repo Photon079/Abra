@@ -8,7 +8,15 @@ dist/
 build/
 *.log
 local_data/
-brain_files/
-!brain_files/.gitkeep
+
+# Cognee local artifacts (cloud mode shouldn't create these, but just in case)
+.cognee/
+.cognee_system/
+
+# Ignore stray markdown (chat logs etc.) but keep README and docs/
 *.md
 !README.md
+!docs/*.md
+
+# local-first SQLite store
+data/

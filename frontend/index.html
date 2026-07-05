@@ -749,6 +749,7 @@
             <nav class="nav-links" style="display: flex; gap: 4px;">
                 <a href="/" class="nav-link nav-link-active" style="padding: 8px 18px; border-radius: 8px; font-family: var(--font-display); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-decoration: none; color: var(--bg-color); background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); box-shadow: 0 0 15px rgba(102, 252, 241, 0.2);">Dashboard</a>
                 <a href="/chat.html" class="nav-link nav-link-inactive" style="padding: 8px 18px; border-radius: 8px; font-family: var(--font-display); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-decoration: none; color: rgba(255,255,255,0.5); border: 1px solid transparent; transition: all 0.2s;">Chat Terminal</a>
+                <a href="/brain.html" class="nav-link nav-link-inactive" style="padding: 8px 18px; border-radius: 8px; font-family: var(--font-display); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; text-decoration: none; color: rgba(255,255,255,0.5); border: 1px solid transparent; transition: all 0.2s;">Second Brain</a>
             </nav>
         </div>
         <div class="status-grid">
@@ -924,6 +925,34 @@
                     </div>
                 </div>
             </div>
+        </section>
+
+        <!-- Diary panel (Notion-backed) -->
+        <section class="hud-panel">
+            <div class="panel-header">
+                <div class="panel-title">📓 Diary</div>
+                <div id="dash-diary-count" style="font-family:var(--font-mono);font-size:12px;color:var(--primary-color);">0</div>
+            </div>
+            <textarea id="dash-diary-summary" placeholder="What happened today? Syncs to your Notion diary + feeds Abra's memory." style="width:100%;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:11px;color:#fff;font-family:var(--font-sans);font-size:14px;resize:vertical;min-height:64px;outline:none;"></textarea>
+            <div style="display:flex;gap:10px;margin-top:10px;">
+                <select id="dash-diary-mood" style="flex:1;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px;color:#fff;font-family:var(--font-sans);font-size:13px;outline:none;"><option>Stable</option><option>Focused</option><option>Scattered</option><option>Stressed</option><option>Low Energy</option></select>
+                <button class="btn btn-primary" style="flex:0 0 auto;padding:11px 20px;" onclick="dashAddDiary()">Save</button>
+            </div>
+            <input id="dash-diary-acts" placeholder="Activities: Coding, Running…" style="width:100%;margin-top:10px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px;color:#fff;font-family:var(--font-sans);font-size:13px;outline:none;">
+            <div id="dash-diary-list" style="margin-top:16px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:38vh;"></div>
+        </section>
+
+        <!-- To-Do panel (Notion-backed) -->
+        <section class="hud-panel">
+            <div class="panel-header">
+                <div class="panel-title">✅ To-Do</div>
+                <div id="dash-task-count" style="font-family:var(--font-mono);font-size:12px;color:var(--primary-color);">0 open</div>
+            </div>
+            <div style="display:flex;gap:10px;">
+                <input id="dash-task-title" placeholder="Add a task…" onkeydown="if(event.key==='Enter')dashAddTask()" style="flex:1;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:11px;color:#fff;font-family:var(--font-sans);font-size:14px;outline:none;">
+                <button class="btn btn-primary" style="flex:0 0 auto;padding:11px 20px;" onclick="dashAddTask()">Add</button>
+            </div>
+            <div id="dash-task-list" style="margin-top:16px;display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:52vh;"></div>
         </section>
 
     </main>
@@ -1399,11 +1428,42 @@ Verify calendar sync and keep consistent.
                 .replace(/\n/g, '<br>');
         }
 
+        // ── Notion-backed Diary + To-Do panels ──
+        function dashEsc(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+        async function dashLoadDiary(){
+            try{ const r=await fetch(`${API_BASE}/notion/diary`); const d=await r.json();
+                const l=document.getElementById('dash-diary-list'); document.getElementById('dash-diary-count').innerText=d.entries.length;
+                l.innerHTML = d.entries.length ? d.entries.map(e=>`<div style="padding:11px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);"><div style="display:flex;justify-content:space-between;"><span style="font-family:var(--font-mono);font-size:10px;color:rgba(255,255,255,0.4);">${e.date||''}</span><span style="font-family:var(--font-mono);font-size:10px;color:var(--secondary-color);text-transform:uppercase;">${e.mood||''}</span></div><div style="font-size:13px;color:var(--text-color);margin-top:4px;line-height:1.4;">${dashEsc(e.summary)}</div></div>`).join('') : '<div style="color:rgba(255,255,255,0.3);font-size:12px;font-style:italic;text-align:center;padding:14px;">No entries yet.</div>';
+            }catch(e){}
+        }
+        async function dashAddDiary(){
+            const s=document.getElementById('dash-diary-summary').value.trim(); if(!s) return;
+            const acts=document.getElementById('dash-diary-acts').value.split(',').map(x=>x.trim()).filter(Boolean);
+            await fetch(`${API_BASE}/notion/diary`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({summary:s,mood:document.getElementById('dash-diary-mood').value,activities:acts})});
+            document.getElementById('dash-diary-summary').value=''; document.getElementById('dash-diary-acts').value=''; dashLoadDiary();
+        }
+        async function dashLoadTasks(){
+            try{ const r=await fetch(`${API_BASE}/notion/tasks`); const d=await r.json();
+                const l=document.getElementById('dash-task-list'); const open=d.tasks.filter(t=>!t.done).length;
+                document.getElementById('dash-task-count').innerText=open+' open';
+                l.innerHTML = d.tasks.length ? d.tasks.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);"><div onclick="dashToggleTask('${t.id}',${t.done})" style="width:18px;height:18px;flex-shrink:0;border-radius:5px;border:2px solid var(--primary-color);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:#050508;background:${t.done?'var(--primary-color)':'transparent'};">${t.done?'✓':''}</div><span style="flex:1;font-size:13px;color:${t.done?'rgba(255,255,255,0.35)':'#fff'};text-decoration:${t.done?'line-through':'none'};">${dashEsc(t.title)}</span>${t.category?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--accent-purple);text-transform:uppercase;">${dashEsc(t.category)}</span>`:''}<button onclick="dashDeleteTask('${t.id}')" style="background:none;border:none;color:rgba(255,255,255,0.25);cursor:pointer;font-size:15px;">✕</button></div>`).join('') : '<div style="color:rgba(255,255,255,0.3);font-size:12px;font-style:italic;text-align:center;padding:14px;">No tasks.</div>';
+            }catch(e){}
+        }
+        async function dashAddTask(){
+            const t=document.getElementById('dash-task-title').value.trim(); if(!t) return;
+            await fetch(`${API_BASE}/notion/tasks`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t})});
+            document.getElementById('dash-task-title').value=''; dashLoadTasks();
+        }
+        async function dashToggleTask(id,done){ await fetch(`${API_BASE}/notion/tasks/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({done:!done})}); dashLoadTasks(); }
+        async function dashDeleteTask(id){ await fetch(`${API_BASE}/notion/tasks/${id}`,{method:'DELETE'}); dashLoadTasks(); }
+
         // Initial Boot
         document.getElementById("init-time").innerText = "[" + new Date().toTimeString().split(" ")[0] + "]";
         checkStatus();
         fetchBriefing();
         fetchDashboardTelemetry();
+        dashLoadDiary();
+        dashLoadTasks();
         setInterval(checkStatus, 15000);
         setInterval(fetchDashboardTelemetry, 30000);
     </script>

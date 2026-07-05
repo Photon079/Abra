@@ -4,7 +4,26 @@ import logging
 import subprocess
 from typing import List, Dict, Any
 
+from app import PROJECT_ROOT
+
 logger = logging.getLogger("abra.coral_query")
+
+
+def chess_where(include_archive: bool = False) -> str:
+    """Build the required WHERE clause for the chesscom Coral source.
+
+    The chesscom source (contributed upstream) enforces constant equality
+    filters: `stats` requires `username`; `games` additionally requires
+    `year` (int) and `month` (zero-padded string) to select a monthly archive.
+    """
+    from datetime import datetime
+
+    user = os.getenv("CHESSCOM_USERNAME", "")
+    clause = f"username = '{user}'"
+    if include_archive:
+        now = datetime.now()
+        clause += f" AND year = {now.year} AND month = '{now.month:02d}'"
+    return clause
 
 class CoralQueryService:
     def __init__(self):
@@ -19,7 +38,7 @@ class CoralQueryService:
 
         # Fallback: Look in local project root directory
         if not self.coral_path:
-            local_bin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "coral")
+            local_bin = str(PROJECT_ROOT / "coral")
             if os.path.exists(local_bin) and os.access(local_bin, os.X_OK):
                 self.coral_path = local_bin
 

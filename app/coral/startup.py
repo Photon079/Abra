@@ -14,6 +14,8 @@ import subprocess
 import json
 import logging
 import glob
+
+from app import PROJECT_ROOT
 from pathlib import Path
 
 logger = logging.getLogger("abra.startup")
@@ -68,7 +70,7 @@ def register_all_sources(sources_dir: str = None) -> dict[str, bool]:
     that aren't already registered with Coral. Returns {source_name: success}.
     """
     if sources_dir is None:
-        sources_dir = Path(__file__).parent / "sources"
+        sources_dir = PROJECT_ROOT / "sources"
 
     sources_dir = Path(sources_dir)
     if not sources_dir.exists():
@@ -212,7 +214,7 @@ def refresh_strava_token() -> str | None:
 
 def _update_env_var(key: str, value: str):
     """Updates or adds a KEY=VALUE line in .env file."""
-    env_path = Path(__file__).parent / ".env"
+    env_path = PROJECT_ROOT / ".env"
     if not env_path.exists():
         env_path.write_text(f"{key}={value}\n")
         return
@@ -264,7 +266,7 @@ def setup_strava_source():
             return False
 
         # Re-register strava source with fresh token env var in scope
-        strava_spec = Path(__file__).parent / "sources" / "strava.yml"
+        strava_spec = PROJECT_ROOT / "sources" / "strava.yml"
         if strava_spec.exists():
             # Remove old registration first
             subprocess.run(["coral", "source", "remove", "strava"],
@@ -387,7 +389,7 @@ def run_strava_first_auth():
 def bootstrap():
     """
     Call this once at the top of main.py:
-        from coral_startup import bootstrap
+        from app.coral.startup import bootstrap
         bootstrap()
 
     Handles everything automatically every time the app starts.

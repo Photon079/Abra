@@ -6,7 +6,9 @@ I have multiple hobbies and from a very long time tried to connect all my stuff 
 
 I built Abra to fix this. It's a voice-first personal life OS that listens to whatever you speak, writes structured diary entries to Notion, and answers questions about your own life using live data from every source at once — queried as SQL via [Coral](https://withcoral.com).
 
-This is v1. Chess.com and Strava are connected now. The goal is to eventually pipe in everything — GitHub activity, calendar events, learning progress, health data — so Abra has a complete picture of your life, not just fragments of it.
+**v2 update:** Abra v1 could *read* your life. v2 *remembers* it. A [Cognee Cloud](https://www.cognee.ai) knowledge graph replaces v1's flat context dumps, so Abra reasons over relationships and history — "what happens to my chess accuracy in weeks where my diary mentions low sleep?" — instead of re-reading raw text on every request. Chess.com and Strava are connected via Coral; the goal is to eventually pipe in everything so Abra has a complete picture of your life, not just fragments of it.
+
+Check out how to set up Abra for yourself [here](https://medium.com/@anish79u/i-built-an-ai-that-actually-knows-me-heres-how-you-can-too-9067a56b9295), or see [docs/SETUP.md](docs/SETUP.md).
 
 ---
 
@@ -32,6 +34,45 @@ WHERE s.sport_type = 'Run'
 ORDER BY s.start_date DESC
 LIMIT 5;
 ```
+
+---
+
+## 🧠 Powered by Cognee Cloud: Graph Memory
+
+Coral is the **live-fact plane**. Cognee is the **memory plane**. Where v1 scanned
+Notion sub-pages by title keyword and dumped raw text into every prompt, v2 pushes
+diary entries, goals, and daily telemetry summaries through Cognee's
+`add() → cognify()` pipeline into a persistent knowledge graph, then retrieves
+ranked, relationship-aware context with `search(GRAPH_COMPLETION)`.
+
+```
+Speak / log / query
+        │
+        ▼
+Coral SQL (live facts)  +  Notion (storage)
+        │
+        ▼
+cognee.add()  →  cognee.cognify()          ← ingestion pipeline
+        │
+        ▼
+Knowledge graph: entities (goals, habits, races, chess patterns)
+                 + relationships + time, tagged by node set
+        │
+        ▼
+cognee.search(GRAPH_COMPLETION)  on every chat / briefing
+        │
+        ▼
+LLM answers from retrieved graph context, not raw dumps
+```
+
+Node sets scope retrieval per domain: `diary`, `fitness`, `chess`, `goals`,
+`insights`. Generated insights are written *back* into the graph as first-class
+nodes (`insights`), so Abra compounds knowledge over time instead of throwing it away.
+
+It runs entirely on **Cognee Cloud** (API-key auth, zero local graph infra) and is
+gated behind `USE_GRAPH_MEMORY` — with the flag off (or no key), Abra falls back to
+the v1 Notion loader and still works. See [`app/memory/graph_memory.py`](app/memory/graph_memory.py)
+and validate your account with [`scripts/cognee_spike.py`](scripts/cognee_spike.py).
 
 ---
 
@@ -117,21 +158,28 @@ coral source add --file sources/chesscom.yml
 coral source add --file sources/strava.yml
 
 # One-time Strava OAuth (opens browser, writes token to .env automatically)
-python3 coral_startup.py --strava-auth
+python3 -m app.coral.startup --strava-auth
 
-# Start everything
-python3 main.py
+# (Optional) validate Cognee Cloud, then flip USE_GRAPH_MEMORY=true in .env
+python3 scripts/cognee_spike.py
+
+# Start everything (from the repo root)
+python3 run.py
 ```
 
 Open **http://127.0.0.1:8000** — the dashboard loads with your live data.
 
-> After first setup, `coral_startup.py` auto-registers all sources and refreshes Strava tokens on every `python3 main.py`. No manual steps.
+> On every `python3 run.py`, startup auto-registers Coral sources, refreshes Strava
+> tokens, and verifies Cognee Cloud connectivity. No manual steps.
+>
+> **Backfill the graph before a demo:** `curl -X POST http://127.0.0.1:8000/memory/backfill`
+> ingests your existing Notion diary history + a 30-day telemetry snapshot in one batch.
 
 ---
 
 ## Coral Source Specifications
 
-Two community source specs ship with Abra — also submitted as standalone bounty contributions to the Coral registry:
+The `chesscom` and `strava` sources were **built and contributed to Coral by the author** — they're native Coral sources now, not Abra-only add-ons. The manifests below are the reference copies:
 
 | Source | Auth | Tables | Notes |
 |---|---|---|---|
@@ -188,37 +236,49 @@ The LLM reads these sub-pages live on every single chat request. The more honest
 - **Frontend:** React 18, Tailwind CSS, Lucide React
 - **AI:** Gemini → Groq → OpenRouter (cascading fallback)
 - **Voice Transcription:** Groq Whisper, Web Speech API
-- **Data Engine:** Coral SQL
-- **Memory & Tasks:** Notion API
+- **Live-data Engine:** Coral SQL
+- **Graph Memory:** Cognee Cloud
+- **Storage & Tasks:** Notion API
 
 ## Project Structure
 
 ```
 Abra/
-├── main.py              # FastAPI server and API endpoints
-├── coral_startup.py     # Auto source registration + Strava OAuth
-├── llm.py               # Multi-provider AI fallback logic
-├── coral_query.py       # Coral SQL execution interface
-├── notion_writer.py     # Notion API (diary, tasks, context)
-├── memory_loader.py     # Context aggregation from Notion or local
-├── briefing.py          # Morning briefing generation
-├── diary.py             # Voice → structured diary processor
-├── goals.py             # Goal decomposition
-├── qa.py                # Context-aware Q&A handler
-├── intent_router.py     # NLP message routing
-├── patterns.py          # Behavioral pattern analysis
-├── sources/
-│   ├── chesscom.yml     # Chess.com Coral spec (bounty submission)
-│   └── strava.yml       # Strava Coral spec (bounty submission)
-├── brain_files/         # Your personal context files (not committed)
-├── frontend/
-│   ├── src/             # React components
-│   └── package.json
+├── run.py                       # Entrypoint — python run.py (serves API + frontend)
+├── app/                         # Backend package
+│   ├── main.py                  # FastAPI app + all routes
+│   ├── llm.py                   # Multi-provider AI cascade (Gemini → Groq → …)
+│   ├── intent_router.py         # Explicit-command vs. general-chat routing
+│   ├── coral/                   # Live-data plane
+│   │   ├── query.py             # Coral SQL execution interface
+│   │   └── startup.py           # Source auto-registration + Strava OAuth
+│   ├── memory/                  # Memory plane
+│   │   ├── graph_memory.py      # Cognee Cloud graph memory (v2)
+│   │   └── notion_loader.py     # Legacy flat Notion loader (fallback)
+│   ├── integrations/
+│   │   └── notion.py            # Notion API (diary, tasks, brain)
+│   └── features/                # Request handlers
+│       ├── diary.py             # Voice → structured diary (+ graph ingest)
+│       ├── briefing.py          # Morning briefing (+ graph trends & insight write-back)
+│       ├── qa.py                # Context-aware Q&A (+ graph retrieval)
+│       ├── goals.py             # Goal decomposition
+│       └── patterns.py          # Behavioral pattern analysis
+├── sources/                     # Coral source specs (chesscom.yml, strava.yml)
+├── scripts/                     # setup.py, strava_exchange.py, cognee_spike.py, …
+├── docs/                        # PRD_v1.md, PRD_v2.md
+├── frontend/                    # React dashboard
 ├── .env.example
 └── requirements.txt
 ```
 
+> **Note:** the `chesscom` and `strava` Coral sources were **contributed to Coral by
+> the author** and are first-class sources in Coral itself — Abra queries those
+> directly (`coral source list` shows them as installed). The copies in `sources/`
+> are the reference manifests; Abra only falls back to registering them if Coral
+> doesn't already have them, and re-registers `strava.yml` when refreshing the
+> OAuth token.
+
 ---
 
-**Built by [Anish](https://github.com/Photon079) for the Pirates of the Coral-bean hackathon.**  
-**Powered by [Coral](https://withcoral.com).**
+**Built by [Anish](https://github.com/Photon079) — v1 for the Pirates of the Coral-bean hackathon, v2 for the Cognee x WeMakeDevs "The Hangover Part AI" hackathon.**  
+**Powered by [Coral](https://withcoral.com) (live data) + [Cognee Cloud](https://www.cognee.ai) (graph memory).**

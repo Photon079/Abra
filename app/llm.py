@@ -82,6 +82,9 @@ class LLMService:
             logger.warning("Truncating user message for Groq...")
             user_message = user_message[:8000] + "\n...[TRUNCATED]"
             
+        if response_format_json:
+            user_message += "\nOutput must be a valid JSON object."
+            
         try:
             # Fallback to model with larger free tier TPM limit
             model = "llama-3.1-8b-instant"

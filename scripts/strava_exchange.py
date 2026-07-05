@@ -1,10 +1,11 @@
 import os
 import re
-import requests
+import httpx
 from pathlib import Path
 from dotenv import load_dotenv
 
-ENV_PATH = Path(__file__).parent / ".env"
+# repo root is the parent of scripts/
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(ENV_PATH)
 
 CLIENT_ID = os.getenv("STRAVA_CLIENT_ID", "")
@@ -41,7 +42,7 @@ def main():
     }
     
     try:
-        response = requests.post("https://www.strava.com/oauth/token", data=payload)
+        response = httpx.post("https://www.strava.com/oauth/token", data=payload)
         res_data = response.json()
         
         if response.status_code == 200:

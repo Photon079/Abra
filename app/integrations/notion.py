@@ -4,7 +4,25 @@ from typing import List, Optional
 from datetime import datetime
 from notion_client import Client
 
+from app import PROJECT_ROOT
+
 logger = logging.getLogger("abra.notion_writer")
+
+
+def _to_iso(s: str, fallback: str) -> str:
+    """Normalize a Notion date/title string to ISO 'YYYY-MM-DD'."""
+    s = (s or "").strip()
+    if not s:
+        return fallback
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return s[:10]
+    for fmt in ("%B %d, %Y", "%b %d, %Y", "%B %d %Y", "%d %B %Y", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(s, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return fallback
+
 
 class NotionWriter:
     def __init__(self):
@@ -59,7 +77,7 @@ class NotionWriter:
         
         if not self.client or not self.diary_db_id:
             logger.warning("Notion offline fallback. Simulating diary write.")
-            diary_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_data")
+            diary_dir = str(PROJECT_ROOT / "local_data")
             os.makedirs(diary_dir, exist_ok=True)
             diary_file = os.path.join(diary_dir, "Diary")
             
@@ -213,7 +231,7 @@ class NotionWriter:
         
         if not self.client or not self.tasks_db_id:
             logger.warning("Notion offline fallback. Simulating task creation.")
-            todo_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local_data")
+            todo_dir = str(PROJECT_ROOT / "local_data")
             os.makedirs(todo_dir, exist_ok=True)
             todo_file = os.path.join(todo_dir, "Todo")
             
@@ -392,6 +410,230 @@ class NotionWriter:
         except Exception as e:
             logger.error(f"Notion API error updating brain file {file_key}: {e}")
             return False
+
+    # ── read/write helpers for the dashboard diary/to-do panels ───────────────
+    # notion-client 3.x dropped databases.query (new API uses data sources), and
+    # its pages.create fails validation against these DBs. The rest of the app
+    # already uses raw REST with Notion-Version 2022-06-28, which works — so do
+    # the same here for consistency.
+    def _http(self):
+        import httpx
+        headers = {
+            "Authorization": f"Bearer {self.notion_token}",
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+        }
+        return httpx, headers
+
+    def _query_db(self, db_id: str, payload: dict) -> list:
+        httpx, headers = self._http()
+        r = httpx.post(f"https://api.notion.com/v1/databases/{db_id}/query",
+                       headers=headers, json=payload, timeout=15)
+        r.raise_for_status()
+        return r.json().get("results", [])
+
+    def list_tasks(self, limit: int = 50) -> List[dict]:
+        """List tasks from the Notion Tasks DB (title, status, category, page id)."""
+        if not self.client or not self.tasks_db_id or not self.is_database_id(self.tasks_db_id):
+            return []
+        try:
+            results = self._query_db(self.tasks_db_id, {"page_size": limit})
+            out = []
+            for p in results:
+                props = p.get("properties", {})
+                title = "Untitled"
+                for field in ("Task Name", "Name", "Task", "Title"):
+                    tp = props.get(field, {}).get("title")
+                    if tp:
+                        title = tp[0].get("plain_text", "Untitled")
+                        break
+                status = "Todo"
+                if props.get("Status", {}).get("status"):
+                    status = props["Status"]["status"]["name"]
+                category = None
+                if props.get("Category", {}).get("select"):
+                    category = props["Category"]["select"]["name"]
+                deadline = None
+                for df in ("Deadline", "Due", "Date", "Due Date"):
+                    if props.get(df, {}).get("date"):
+                        deadline = props[df]["date"].get("start")
+                        if deadline:
+                            deadline = deadline[:10]
+                        break
+                out.append({
+                    "id": p["id"], "title": title, "status": status,
+                    "category": category, "deadline": deadline,
+                    "done": status.lower() in ("done", "completed"),
+                })
+            # open tasks first
+            out.sort(key=lambda t: t["done"])
+            return out
+        except Exception as e:
+            logger.error(f"Notion list_tasks error: {e}")
+            return []
+
+    def create_task_http(self, title: str, category: str = "",
+                         due_date: Optional[str] = None) -> Optional[str]:
+        """Create a task page via REST (2022-06-28). Returns the new page id.
+        due_date is ISO 'YYYY-MM-DD' and sets the Deadline property."""
+        if not self.client or not self.tasks_db_id or not self.is_database_id(self.tasks_db_id):
+            return None
+        httpx, headers = self._http()
+        # Don't set Status on create — option names vary per DB (e.g. "Not started"),
+        # and "Todo" often doesn't exist. Let Notion assign the default status.
+        props = {
+            "Task Name": {"title": [{"text": {"content": title}}]},
+        }
+        if category:
+            props["Category"] = {"select": {"name": category}}
+        if due_date:
+            props["Deadline"] = {"date": {"start": due_date}}
+
+        def _post(p):
+            return httpx.post("https://api.notion.com/v1/pages", headers=headers,
+                              json={"parent": {"database_id": self.tasks_db_id}, "properties": p}, timeout=15)
+        try:
+            r = _post(props)
+            if r.status_code != 200 and due_date:
+                # 'Deadline' property may not exist — retry without it.
+                props.pop("Deadline", None)
+                r = _post(props)
+            r.raise_for_status()
+            return r.json().get("id")
+        except Exception as e:
+            logger.error(f"Notion create_task_http error: {e}")
+            return None
+
+    def set_task_done(self, page_id: str, done: bool = True) -> bool:
+        httpx, headers = self._http()
+        # "Not started" is Notion's default To-do option; "Done" is the default
+        # Complete option. Try that, then fall back to other common names.
+        candidates = ["Done"] if done else ["Not started", "To Do", "Todo"]
+        for name in candidates:
+            try:
+                r = httpx.patch(f"https://api.notion.com/v1/pages/{page_id}", headers=headers,
+                                json={"properties": {"Status": {"status": {"name": name}}}}, timeout=15)
+                if r.status_code == 200:
+                    return True
+            except Exception as e:
+                logger.error(f"Notion set_task_done error: {e}")
+                return False
+        logger.error("Notion set_task_done: no matching status option found")
+        return False
+
+    def archive_task(self, page_id: str) -> bool:
+        httpx, headers = self._http()
+        try:
+            r = httpx.patch(f"https://api.notion.com/v1/pages/{page_id}", headers=headers,
+                            json={"archived": True}, timeout=15)
+            r.raise_for_status()
+            return True
+        except Exception as e:
+            logger.error(f"Notion archive_task error: {e}")
+            return False
+
+    def create_diary_http(self, summary: str, mood: str = "Stable",
+                          activities: Optional[List[str]] = None,
+                          date: Optional[str] = None) -> Optional[str]:
+        """Create a diary page via REST. Stores summary as a 'Summary' rich_text
+        property so it lists cleanly, plus in the page body. `date` is ISO."""
+        if not self.client or not self.diary_db_id or not self.is_database_id(self.diary_db_id):
+            return None
+        httpx, headers = self._http()
+        if date:
+            try:
+                title_date = datetime.strptime(date, "%Y-%m-%d").strftime("%B %d, %Y")
+            except ValueError:
+                title_date = datetime.now().strftime("%B %d, %Y")
+        else:
+            title_date = datetime.now().strftime("%B %d, %Y")
+        acts = activities or []
+        props = {
+            "Date": {"title": [{"text": {"content": title_date}}]},
+            "Summary": {"rich_text": [{"text": {"content": summary[:1990]}}]},
+        }
+        if mood:
+            props["Mood"] = {"select": {"name": mood}}
+        if acts:
+            props["Activities Logged"] = {"multi_select": [{"name": a} for a in acts]}
+        body = {
+            "parent": {"database_id": self.diary_db_id},
+            "properties": props,
+            "children": [{"object": "block", "type": "paragraph",
+                          "paragraph": {"rich_text": [{"text": {"content": summary}}]}}],
+        }
+        try:
+            r = httpx.post("https://api.notion.com/v1/pages", headers=headers, json=body, timeout=15)
+            r.raise_for_status()
+            return r.json().get("id")
+        except Exception as e:
+            # 'Summary' property may not exist on the user's DB — retry without it.
+            logger.warning(f"Notion create_diary_http (with Summary) failed: {e}; retrying minimal.")
+            props.pop("Summary", None)
+            body["properties"] = props
+            try:
+                r = httpx.post("https://api.notion.com/v1/pages", headers=headers, json=body, timeout=15)
+                r.raise_for_status()
+                return r.json().get("id")
+            except Exception as e2:
+                logger.error(f"Notion create_diary_http error: {e2}")
+                return None
+
+    def list_diary(self, limit: int = 60) -> List[dict]:
+        """List recent diary entries. Summary comes from the Summary/Entry/Notes
+        property, falling back to the first paragraph block of the page body."""
+        if not self.client or not self.diary_db_id or not self.is_database_id(self.diary_db_id):
+            return []
+        try:
+            results = self._query_db(self.diary_db_id, {
+                "page_size": limit,
+                "sorts": [{"timestamp": "created_time", "direction": "descending"}],
+            })
+            httpx, headers = self._http()
+            out = []
+            for p in results:
+                props = p.get("properties", {})
+                created = p.get("created_time", "")[:10]
+                date = created
+                dprop = props.get("Date", {})
+                if dprop.get("title"):
+                    date = dprop["title"][0].get("plain_text", date) if dprop["title"] else date
+                elif dprop.get("date"):
+                    date = dprop["date"].get("start", date)
+                date = _to_iso(date, created)
+                mood = None
+                for mf in ("Mood", "Mood Signal"):
+                    if props.get(mf, {}).get("select"):
+                        mood = props[mf]["select"]["name"]
+                        break
+                acts = []
+                for af in ("Activities Logged", "Activities"):
+                    if props.get(af, {}).get("multi_select"):
+                        acts = [a["name"] for a in props[af]["multi_select"]]
+                        break
+                summary = ""
+                for sf in ("Summary", "Entry", "Notes"):
+                    rt = props.get(sf, {}).get("rich_text")
+                    if rt:
+                        summary = rt[0].get("plain_text", "")
+                        break
+                if not summary:
+                    try:
+                        br = httpx.get(f"https://api.notion.com/v1/blocks/{p['id']}/children?page_size=5",
+                                       headers=headers, timeout=10)
+                        for b in br.json().get("results", []):
+                            if b.get("type") == "paragraph":
+                                txt = "".join(r.get("plain_text", "") for r in b["paragraph"].get("rich_text", []))
+                                if txt:
+                                    summary = txt
+                                    break
+                    except Exception:
+                        pass
+                out.append({"date": date, "mood": mood, "summary": summary, "activities": acts})
+            return out
+        except Exception as e:
+            logger.error(f"Notion list_diary error: {e}")
+            return []
 
 # Global single instance
 notion_writer = NotionWriter()

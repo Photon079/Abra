@@ -1,8 +1,9 @@
 import json
 import logging
 from typing import Dict, Any
-from llm import llm_service
-from coral_query import coral_query_service
+from app.llm import llm_service
+from app.coral.query import coral_query_service, chess_where
+from app.memory.graph_memory import graph_memory
 
 logger = logging.getLogger("abra.qa")
 
@@ -18,12 +19,12 @@ def answer_memory_query(user_input: str, system_prompt: str) -> Dict[str, Any]:
     
     # 1. Route to Chess.com stats
     if "chess" in user_input_lower or "rating" in user_input_lower or "win" in user_input_lower:
-        sql = "SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats"
+        sql = f"SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats WHERE {chess_where()}"
         res = coral_query_service.run_query(sql)
         context_data.append({"chess_stats": res})
         
         # Also grab recent matches
-        games_sql = "SELECT pgn, time_class, white__username, white__rating, white__result, black__username, black__rating, black__result, accuracies__white, accuracies__black FROM chesscom.games ORDER BY end_time DESC LIMIT 2"
+        games_sql = f"SELECT pgn, time_class, white__username, white__rating, white__result, black__username, black__rating, black__result, accuracies__white, accuracies__black FROM chesscom.games WHERE {chess_where(include_archive=True)} ORDER BY end_time DESC LIMIT 2"
         games_res = coral_query_service.run_query(games_sql)
         context_data.append({"recent_games": games_res})
 
@@ -37,7 +38,7 @@ def answer_memory_query(user_input: str, system_prompt: str) -> Dict[str, Any]:
     if any(kw in user_input_lower for kw in ["notion", "task", "diary", "schedule", "goal", "plan", "todo", "today"]):
         try:
             import httpx
-            from notion_writer import notion_writer
+            from app.integrations.notion import notion_writer
             if notion_writer.client and notion_writer.tasks_db_id and notion_writer.diary_db_id:
                 headers = {
                     "Authorization": f"Bearer {notion_writer.client.auth}",
@@ -74,13 +75,29 @@ def answer_memory_query(user_input: str, system_prompt: str) -> Dict[str, Any]:
 
     context_str = json.dumps(context_data, indent=2) if context_data else "No live telemetry found for this query context."
 
+    # 4. Graph memory retrieval (F2). Coral above is the live-fact plane; Cognee
+    #    is the memory plane — it answers relational/temporal questions the flat
+    #    dump can't (e.g. "what happens to my chess accuracy in low-sleep weeks").
+    #    Empty string when USE_GRAPH_MEMORY is off, so v1 behaviour is preserved.
+    graph_context = graph_memory.retrieve(user_input)
+    graph_block = (
+        f"Relationship-aware context retrieved from the knowledge graph (Cognee):\n{graph_context}"
+        if graph_context
+        else "No graph memory context (flag off or nothing linked yet)."
+    )
+
     # Call LLM to compile direct response
     prompt = f"""Anish has asked a question: "{user_input}"
-Telemetry retrieved via Coral SQL & Notion:
+
+Live telemetry retrieved via Coral SQL & Notion:
 {context_str}
 
+{graph_block}
+
 Examine this context and answer his question accurately.
-Ground your response in his master profile, goals, and these telemetry stats.
+Prefer the graph memory for questions about history, trends, and how things
+relate over time; use the live telemetry for current numbers.
+Ground your response in his master profile, goals, and these stats.
 Follow the brutal honesty and conciseness rules strictly.
 """
 
@@ -88,5 +105,6 @@ Follow the brutal honesty and conciseness rules strictly.
     return {
         "intent": "qna",
         "markdown": response_md,
-        "telemetry_context": context_data
+        "telemetry_context": context_data,
+        "graph_context": graph_context,
     }

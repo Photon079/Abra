@@ -1,9 +1,10 @@
 import json
 import logging
 from typing import Dict, Any
-from llm import llm_service
-from coral_query import coral_query_service
-from notion_writer import notion_writer
+from app.llm import llm_service
+from app.coral.query import coral_query_service
+from app.integrations.notion import notion_writer
+from app.memory.graph_memory import graph_memory
 
 logger = logging.getLogger("abra.diary")
 
@@ -73,6 +74,11 @@ Structure standard JSON strictly with the following fields:
         tomorrow_focus=log_data["tomorrow_focus"],
         raw_transcript=user_input
     )
+
+    # 3b. Cognify into the graph memory (F1). Fire-and-forget so the voice/diary
+    #     flow is never blocked waiting on cognify (PRD risk #2). No-op if the
+    #     USE_GRAPH_MEMORY flag is off.
+    graph_memory.ingest_diary(log_data, background=True)
 
     # 4. Compile Markdown response
     md_output = f"""### Daily Log Committed to Notion! 📝

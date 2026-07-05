@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 load_dotenv()  # Must run BEFORE any module imports that read os.getenv()
 
-from coral_startup import bootstrap
+from app.coral.startup import bootstrap
 bootstrap()
 
 import logging
@@ -11,15 +11,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
-from llm import llm_service
-from memory_loader import memory_loader
-from intent_router import classify_intent
-from diary import process_diary_entry
-from briefing import generate_morning_briefing
-from goals import decompose_goal
-from qa import answer_memory_query
-from patterns import scan_self_sabotage_patterns
-from notion_writer import notion_writer
+from app import PROJECT_ROOT
+
+from app.llm import llm_service
+from app.memory.notion_loader import memory_loader
+from app.intent_router import classify_intent
+from app.features.diary import process_diary_entry
+from app.features.briefing import generate_morning_briefing
+from app.features.goals import decompose_goal
+from app.features.qa import answer_memory_query
+from app.features.patterns import scan_self_sabotage_patterns
+from app.integrations.notion import notion_writer
+from app.integrations.local_store import local_store
+from app.memory.graph_memory import (
+    graph_memory,
+    NODE_DIARY,
+    NODE_FITNESS,
+    NODE_CHESS,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -43,6 +52,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def no_cache_html(request, call_next):
+    """Never let the browser serve stale HTML (esp. via the back/forward cache),
+    so nav changes like new pages show up immediately without a hard refresh."""
+    response = await call_next(request)
+    if response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+
+
+@app.on_event("startup")
+def _verify_graph_memory():
+    """Verify Cognee Cloud connectivity at startup without blocking boot (G4)."""
+    if graph_memory.enabled:
+        import threading
+        threading.Thread(target=graph_memory.connect_check, daemon=True).start()
+
+
 # Pydantic schemas
 class PromptRequest(BaseModel):
     message: str
@@ -53,21 +81,42 @@ class DiaryRequest(BaseModel):
 class TextRequest(BaseModel):
     text: str
 
+class LocalDiaryRequest(BaseModel):
+    summary: str
+    mood: Optional[str] = None
+    activities: Optional[list] = None
+    date: Optional[str] = None  # ISO YYYY-MM-DD
+
+class LocalTaskRequest(BaseModel):
+    title: str
+    category: Optional[str] = None
+    due_date: Optional[str] = None  # ISO YYYY-MM-DD
+
+class TaskStatusRequest(BaseModel):
+    status: str  # "done" | "todo"
+
+class MemoryAskRequest(BaseModel):
+    query: str
+
+class TaskDoneRequest(BaseModel):
+    done: bool = True
+
 @app.get("/api/status")
 @app.get("/status")
 def get_status():
     """
     Returns connection statuses of Notion, Coral SQL, and LLM Providers.
     """
-    from notion_writer import notion_writer
-    from coral_query import coral_query_service
+    from app.integrations.notion import notion_writer
+    from app.coral.query import coral_query_service
     
     return {
         "status": "active",
         "notion": "connected" if notion_writer.client else "local_fallback",
         "llm_provider": llm_service.provider,
         "llm_configured": bool(llm_service.gemini_key if llm_service.provider == "gemini" else llm_service.groq_key),
-        "coral_cli": "connected" if coral_query_service.coral_path else "simulated"
+        "coral_cli": "connected" if coral_query_service.coral_path else "simulated",
+        "graph_memory": graph_memory.status(),
     }
 
 @app.post("/api/chat")
@@ -98,7 +147,7 @@ async def chat_console(request: PromptRequest):
             return answer_memory_query(request.message, system_prompt)
         else:
             # General chat — but inject live Coral data if the question is about connected sources
-            from coral_query import coral_query_service
+            from app.coral.query import coral_query_service, chess_where
             import json
             
             msg_lower = request.message.lower()
@@ -109,11 +158,11 @@ async def chat_console(request: PromptRequest):
                 try:
                     # Fetch stats
                     stats = coral_query_service.run_query(
-                        'SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats'
+                        f'SELECT chess_blitz__last__rating, chess_rapid__last__rating, chess_rapid__record__win, chess_rapid__record__loss FROM chesscom.stats WHERE {chess_where()}'
                     )
                     # Fetch recent games with PGN
                     games = coral_query_service.run_query(
-                        "SELECT pgn, time_class, white__username, white__rating, white__result, black__username, black__rating, black__result, accuracies__white, accuracies__black FROM chesscom.games ORDER BY end_time DESC LIMIT 2"
+                        f"SELECT pgn, time_class, white__username, white__rating, white__result, black__username, black__rating, black__result, accuracies__white, accuracies__black FROM chesscom.games WHERE {chess_where(include_archive=True)} ORDER BY end_time DESC LIMIT 2"
                     )
                     live_context += f"\n\n--- LIVE CHESS.COM DATA (fetched via Coral SQL) ---\nStats: {json.dumps(stats, indent=2)}\n\nRecent Games (newest first):\n{json.dumps(games, indent=2)}\n--- END LIVE DATA ---\n"
                     logger.info(f"Injected {len(games)} chess games as context for chat.")
@@ -186,7 +235,17 @@ async def chat_console(request: PromptRequest):
                         logger.info(f"Injected notion tasks and diary as context for chat.")
                 except Exception as e:
                     logger.warning(f"Failed to fetch notion context: {e}")
-            
+
+            # Graph memory retrieval (v2) — relationship / temporal context from
+            # the Cognee knowledge graph. No-op when USE_GRAPH_MEMORY is off.
+            try:
+                graph_ctx = graph_memory.retrieve(request.message)
+                if graph_ctx:
+                    live_context += f"\n\n--- GRAPH MEMORY (Cognee knowledge graph) ---\n{graph_ctx}\n--- END GRAPH MEMORY ---\n"
+                    logger.info("Injected graph memory context into chat.")
+            except Exception as e:
+                logger.warning(f"Graph memory retrieve failed in chat: {e}")
+
             enriched_message = request.message + live_context
             response = llm_service.call(system_prompt, enriched_message)
             
@@ -274,19 +333,19 @@ async def get_dashboard_telemetry():
     SaaS Endpoint: Aggregates live SQL telemetry across Chess.com, Strava, 
     and Notion Goals to populate the active personal life dashboard.
     """
-    from coral_query import coral_query_service
-    from notion_writer import notion_writer
-    from llm import llm_service
+    from app.coral.query import coral_query_service, chess_where
+    from app.integrations.notion import notion_writer
+    from app.llm import llm_service
     import os
-    
+
     try:
         # 1. Fetch Chess Stats via Coral SQL
-        chess_stats_sql = 'SELECT chess_blitz__last__rating, chess_rapid__last__rating FROM chesscom.stats'
+        chess_stats_sql = f'SELECT chess_blitz__last__rating, chess_rapid__last__rating FROM chesscom.stats WHERE {chess_where()}'
         chess_stats_data = coral_query_service.run_query(chess_stats_sql)
         chess_res = chess_stats_data[0] if chess_stats_data else {}
-        
-        # Chess 30-Day Volume & Results
-        chess_games_sql = 'SELECT white__username, black__username, white__result, black__result FROM chesscom.games'
+
+        # Chess volume & results for the current monthly archive
+        chess_games_sql = f'SELECT white__username, black__username, white__result, black__result FROM chesscom.games WHERE {chess_where(include_archive=True)}'
         chess_games_data = coral_query_service.run_query(chess_games_sql)
         
         chess_user = os.getenv("CHESSCOM_USERNAME", "Unknown").lower()
@@ -438,6 +497,20 @@ async def get_dashboard_telemetry():
             except:
                 pass
 
+        # Persist a compact daily insight snapshot into the graph (F4). Throttled
+        # to once/hour so the frontend's dashboard polling doesn't flood cognify.
+        import time as _t
+        now_ts = _t.time()
+        if now_ts - getattr(app, "_dash_insight_at", 0) > 3600:
+            app._dash_insight_at = now_ts
+            graph_memory.ingest_insight(
+                f"Daily snapshot: chess {chess_res.get('chess_blitz__last__rating', 0)} blitz "
+                f"({wins}W-{losses}L, {win_rate}% win rate) — {chess_insight} "
+                f"Running {round(monthly_distance, 1)}km/30d — {strava_insight} "
+                f"Holistic: {life_insight}",
+                background=True,
+            )
+
         # 4. Patterns
         return {
             "chess": {
@@ -481,7 +554,7 @@ async def voice_diary_audio(file: UploadFile = File(...)):
         audio_bytes = await file.read()
         transcription_text = ""
         
-        from llm import llm_service
+        from app.llm import llm_service
         
         # 1. Try Groq Whisper (primary transcription engine)
         if llm_service.groq_client:
@@ -540,8 +613,224 @@ async def voice_diary(request: DiaryRequest):
     system_prompt = memory_loader.assemble_system_prompt(context)
     return process_diary_entry(request.transcription, system_prompt)
 
+@app.get("/api/memory")
+def get_memory_status():
+    """Graph memory (Cognee Cloud) status for the dashboard / debugging."""
+    return graph_memory.status()
+
+
+@app.post("/memory/backfill")
+@app.post("/api/memory/backfill")
+def backfill_memory():
+    """
+    One-time backfill: populate the Cognee knowledge graph with existing Notion
+    diary history + a 30-day Coral telemetry snapshot, so the graph has real
+    history to reason over before demo recording. Compact summaries only
+    (PRD risk #4: avoid dumping raw SQL rows into the graph).
+    """
+    if not graph_memory.enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="Graph memory disabled. Set USE_GRAPH_MEMORY=true and COGNEE_API_KEY, then restart.",
+        )
+
+    from app.coral.query import coral_query_service, chess_where
+    import datetime as _dt
+    import httpx
+
+    today = _dt.date.today().isoformat()
+    items = []
+
+    # 1. Coral telemetry — one compact 30-day snapshot blob (fitness + chess).
+    try:
+        strava = coral_query_service.run_query(
+            "SELECT sum(distance)/1000 AS total_km, sum(moving_time)/3600.0 AS total_hours, "
+            "count(*) AS runs FROM strava.activities WHERE type = 'Run' "
+            "AND start_date_local >= current_date() - interval '30 days'"
+        )
+        chess = coral_query_service.run_query(
+            f"SELECT chess_blitz__last__rating, chess_rapid__last__rating FROM chesscom.stats WHERE {chess_where()}"
+        )
+        s = strava[0] if strava else {}
+        c = chess[0] if chess else {}
+        telemetry_summary = (
+            f"30-day telemetry snapshot as of {today}: running "
+            f"{round(float(s.get('total_km') or 0), 1)} km over {int(s.get('runs') or 0)} runs "
+            f"({round(float(s.get('total_hours') or 0), 1)} hours). Chess ratings — blitz "
+            f"{c.get('chess_blitz__last__rating')}, rapid {c.get('chess_rapid__last__rating')}."
+        )
+        items.append((telemetry_summary, [NODE_FITNESS, NODE_CHESS]))
+    except Exception as e:
+        logger.warning(f"Backfill telemetry step failed: {e}")
+
+    # 2. Notion diary history (database-backed diary only).
+    diary_found = 0
+    try:
+        if (
+            notion_writer.client
+            and notion_writer.diary_db_id
+            and notion_writer.is_database_id(notion_writer.diary_db_id)
+        ):
+            headers = {
+                "Authorization": f"Bearer {notion_writer.client.auth}",
+                "Notion-Version": "2022-06-28",
+                "Content-Type": "application/json",
+            }
+            res = httpx.post(
+                f"https://api.notion.com/v1/databases/{notion_writer.diary_db_id}/query",
+                headers=headers,
+                json={"page_size": 100},
+                timeout=15,
+            )
+            for p in res.json().get("results", []):
+                props = p.get("properties", {})
+                date_val = p.get("created_time", "")[:10]
+                if props.get("Date", {}).get("date"):
+                    date_val = props["Date"]["date"].get("start", date_val)
+                mood = None
+                if props.get("Mood", {}).get("select"):
+                    mood = props["Mood"]["select"]["name"]
+                summary = ""
+                for field in ["Summary", "Entry", "Notes"]:
+                    rt = props.get(field, {}).get("rich_text")
+                    if rt:
+                        summary = rt[0].get("plain_text", "")
+                        break
+                acts = []
+                if props.get("Activities Logged", {}).get("multi_select"):
+                    acts = [a["name"] for a in props["Activities Logged"]["multi_select"]]
+                entry = {"summary": summary, "mood": mood, "activities": acts}
+                from app.memory.graph_memory import _diary_to_text
+                items.append((_diary_to_text(entry, date_val), [NODE_DIARY]))
+                diary_found += 1
+    except Exception as e:
+        logger.warning(f"Backfill diary step failed: {e}")
+
+    ingested = graph_memory.ingest_batch(items)
+    return {
+        "status": "backfilled",
+        "diary_entries_found": diary_found,
+        "items_ingested": ingested,
+        "memory": graph_memory.status(),
+    }
+
+
+# ── Local-first "Second Brain": diary + tasks stored in SQLite, zero setup ────
+
+@app.get("/api/local/diary")
+def local_diary_list():
+    return {"entries": local_store.list_diary()}
+
+
+@app.post("/api/local/diary")
+def local_diary_add(req: LocalDiaryRequest):
+    if not req.summary.strip():
+        raise HTTPException(status_code=400, detail="Diary summary cannot be empty")
+    entry = local_store.add_diary(req.summary.strip(), req.mood, req.activities)
+    # Feed the memory plane: typed diary entries become graph nodes too (F1).
+    graph_memory.ingest_diary(
+        {"summary": entry["summary"], "mood": entry["mood"], "activities": entry["activities"]},
+        date=entry["date"],
+        background=True,
+    )
+    return entry
+
+
+@app.get("/api/local/tasks")
+def local_tasks_list():
+    return {"tasks": local_store.list_tasks()}
+
+
+@app.post("/api/local/tasks")
+def local_task_add(req: LocalTaskRequest):
+    if not req.title.strip():
+        raise HTTPException(status_code=400, detail="Task title cannot be empty")
+    return local_store.add_task(req.title.strip(), req.category)
+
+
+@app.patch("/api/local/tasks/{task_id}")
+def local_task_status(task_id: int, req: TaskStatusRequest):
+    task = local_store.set_task_status(task_id, req.status)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task
+
+
+@app.delete("/api/local/tasks/{task_id}")
+def local_task_delete(task_id: int):
+    if not local_store.delete_task(task_id):
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"deleted": task_id}
+
+
+@app.post("/api/memory/ask")
+def memory_ask(req: MemoryAskRequest):
+    """Ask the knowledge graph directly (powers the Memory panel's ask box)."""
+    if not graph_memory.enabled:
+        return {"answer": "", "enabled": False}
+    answer = graph_memory.retrieve(req.query)
+    return {"answer": answer, "enabled": True}
+
+
+# ── Notion-backed diary + to-do for the dashboard panels ──────────────────────
+
+@app.get("/api/notion/tasks")
+def notion_tasks_list():
+    return {"tasks": notion_writer.list_tasks()}
+
+
+@app.post("/api/notion/tasks")
+def notion_task_add(req: LocalTaskRequest):
+    if not req.title.strip():
+        raise HTTPException(status_code=400, detail="Task title cannot be empty")
+    page_id = notion_writer.create_task_http(req.title.strip(), category=req.category or "", due_date=req.due_date)
+    if not page_id:
+        raise HTTPException(status_code=500, detail="Failed to create task in Notion")
+    return {"id": page_id, "title": req.title.strip(), "status": "Todo", "done": False,
+            "category": req.category, "deadline": req.due_date}
+
+
+@app.patch("/api/notion/tasks/{page_id}")
+def notion_task_toggle(page_id: str, req: TaskDoneRequest):
+    if not notion_writer.set_task_done(page_id, req.done):
+        raise HTTPException(status_code=500, detail="Failed to update task in Notion")
+    return {"id": page_id, "done": req.done}
+
+
+@app.delete("/api/notion/tasks/{page_id}")
+def notion_task_delete(page_id: str):
+    if not notion_writer.archive_task(page_id):
+        raise HTTPException(status_code=500, detail="Failed to archive task in Notion")
+    return {"deleted": page_id}
+
+
+@app.get("/api/notion/diary")
+def notion_diary_list():
+    return {"entries": notion_writer.list_diary()}
+
+
+@app.post("/api/notion/diary")
+def notion_diary_add(req: LocalDiaryRequest):
+    if not req.summary.strip():
+        raise HTTPException(status_code=400, detail="Diary summary cannot be empty")
+    page_id = notion_writer.create_diary_http(
+        summary=req.summary.strip(),
+        mood=req.mood or "Stable",
+        activities=req.activities or [],
+        date=req.date,
+    )
+    # feed the memory graph too (F1)
+    graph_memory.ingest_diary(
+        {"summary": req.summary.strip(), "mood": req.mood, "activities": req.activities or []},
+        date=req.date,
+        background=True,
+    )
+    return {"notion_page_id": page_id, "summary": req.summary.strip(), "mood": req.mood,
+            "activities": req.activities or [], "date": req.date}
+
+
 # Serve the frontend directory statically at root path
-app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory=str(PROJECT_ROOT / "frontend"), html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn

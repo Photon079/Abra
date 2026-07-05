@@ -12,7 +12,14 @@ from typing import Dict, Any, List
 
 import httpx
 
-from llm import llm_service
+from app.llm import llm_service
+from app.memory.graph_memory import (
+    graph_memory,
+    NODE_DIARY,
+    NODE_FITNESS,
+    NODE_CHESS,
+    NODE_INSIGHTS,
+)
 
 logger = logging.getLogger("abra.briefing")
 
@@ -164,7 +171,7 @@ def generate_morning_briefing(system_prompt: str) -> Dict[str, Any]:
     time_str = now.strftime("%I:%M %p")
 
     # ── Fetch Notion data ──────────────────────────────────────────
-    from notion_writer import notion_writer
+    from app.integrations.notion import notion_writer
 
     headers = {
         "Authorization": f"Bearer {os.getenv('NOTION_TOKEN') or os.getenv('NOTION_API_KEY')}",
@@ -196,6 +203,16 @@ def generate_morning_briefing(system_prompt: str) -> Dict[str, Any]:
     tasks_text = "\n".join([f"- {t['name']} [{t['category']}]{' (overdue)' if t['overdue'] else ''}" for t in tasks]) if tasks else "None"
     diary_text = "\n".join([f"- {e['date']}: mood={e['mood'] or 'unknown'}, {e['summary'] or 'no summary'}" for e in diary_entries]) if diary_entries else "None"
 
+    # ── Graph memory: week-over-week entity trends (F3) ────────────────────────
+    # Pulls relationship-aware trends across diary/fitness/chess/insights, e.g.
+    # "chess accuracy is linked to low-sleep diary entries 3x this week".
+    graph_trends = graph_memory.retrieve(
+        "Summarize this week's trends and any correlations between sleep, mood, "
+        "running volume, and chess accuracy. Reference specific days.",
+        node_sets=[NODE_DIARY, NODE_FITNESS, NODE_CHESS, NODE_INSIGHTS],
+    )
+    trends_text = graph_trends if graph_trends else "None available yet."
+
     llm_prompt = f"""You are Abra — Anish's personal assistant. You know him well. Right now it's {time_str}.
 
 Here's what's on his plate (last 3 days only):
@@ -203,6 +220,9 @@ Here's what's on his plate (last 3 days only):
 
 Recent diary:
 {diary_text}
+
+Trends from his knowledge graph (relationship-aware memory across weeks):
+{trends_text}
 
 Write TWO things. Return ONLY valid JSON, nothing else, no markdown fences:
 
@@ -246,6 +266,13 @@ Tone: Jarvis meets a close friend. Not corporate. Not therapy-speak. Just human.
         # If LLM returned plain text, use it as the message
         if len(response.strip()) > 10:
             message = response.strip()[:300]
+
+    # ── Insight persistence (F4): write the briefing back into the graph as a
+    #    first-class insight node so tomorrow's briefing can reference it.
+    graph_memory.ingest_insight(
+        f"Morning briefing insight ({now.strftime('%Y-%m-%d')}): {message} Nudge: {nudge}",
+        background=True,
+    )
 
     return {
         "intent": "daily_briefing",
